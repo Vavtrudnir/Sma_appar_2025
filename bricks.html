@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enkel LEGO Byggsimulator</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #info p { margin: 2px 0; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <p><strong>Kontroller:</strong></p>
+        <p>Rotera/Panorera/Zooma: Musknappar + Scroll</p>
+        <p>Placera Kloss: Vänsterklick</p>
+        <p>Byt Storlek: 1 (1x1), 2 (1x2), 3 (2x2), 4 (2x4)</p>
+        <p>Rotera Kloss: R</p>
+        <p>Byt Färg: C</p>
+        <p>Aktuell Kloss: <span id="current-brick">1x1</span></p>
+        <p>Aktuell Färg: <span id="current-color" style="display: inline-block; width: 15px; height: 15px; border: 1px solid white; vertical-align: middle;"></span></p>
+    </div>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Konstanter ---
+        const BOARD_SIZE_STUDS = 100;
+        const STUD_SIZE = 10; // Storlek på en "stud" i world units
+        const BRICK_HEIGHT = STUD_SIZE * 1.2; // Höjd på en standardkloss
+        const BOARD_WIDTH = BOARD_SIZE_STUDS * STUD_SIZE;
+        const BOARD_DEPTH = BOARD_SIZE_STUDS * STUD_SIZE;
+
+        const COLORS = [0xff0000, 0x0000ff, 0x00ff00, 0xffff00, 0xffffff, 0x000000, 0xffa500];
+        const BRICK_TYPES = [
+            { name: "1x1", size: new THREE.Vector3(1, 1, 1) }, // Bredd, Höjd (ignoreras), Djup i studs
+            { name: "1x2", size: new THREE.Vector3(1, 1, 2) },
+            { name: "2x2", size: new THREE.Vector3(2, 1, 2) },
+            { name: "2x4", size: new THREE.Vector3(2, 1, 4) }
+        ];
+
+        // --- Globala variabler ---
+        let scene, camera, renderer, controls;
+        let plane, gridHelper;
+        let raycaster, pointer;
+        let placementGhost; // Den genomskinliga klossen som följer musen
+        let placedBricks = []; // Array för att hålla koll på placerade klossar
+        let currentBrickIndex = 0;
+        let currentColorIndex = 0;
+        let currentRotation = 0; // 0, 1, 2, 3 (motsvarar 0, 90, 180, 270 grader)
+        let canPlace = false; // Om den aktuella positionen är giltig
+
+        // --- HTML Element Refs ---
+        const currentBrickSpan = document.getElementById('current-brick');
+        const currentColorSpan = document.getElementById('current-color');
+
+        // --- Initiering ---
+        function init() {
+            // Scen
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87ceeb); // Himmelsblå
+
+            // Kamera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(BOARD_WIDTH * 0.4, BOARD_WIDTH * 0.6, BOARD_WIDTH * 0.4);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true; // Aktivera skuggor
+            document.body.appendChild(renderer.domElement);
+
+            // Ljus
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(150, 200, 100);
+            directionalLight.castShadow = true;
+            // Konfigurera skuggor för bättre prestanda/kvalitet
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 50;
+            directionalLight.shadow.camera.far = 500;
+            directionalLight.shadow.camera.left = -BOARD_WIDTH / 1.5;
+            directionalLight.shadow.camera.right = BOARD_WIDTH / 1.5;
+            directionalLight.shadow.camera.top = BOARD_DEPTH / 1.5;
+            directionalLight.shadow.camera.bottom = -BOARD_DEPTH / 1.5;
+            scene.add(directionalLight);
+            // scene.add( new THREE.CameraHelper( directionalLight.shadow.camera ) ); // För felsökning av skuggor
+
+            // Bräde (Plane)
+            const planeGeometry = new THREE.PlaneGeometry(BOARD_WIDTH, BOARD_DEPTH);
+            const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22, side: THREE.DoubleSide }); // Mörkgrön
+            plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            plane.rotation.x = -Math.PI / 2; // Rotera så den ligger plant
+            plane.receiveShadow = true; // Planet ska ta emot skuggor
+            plane.userData.isGround = true; // Markör för raycasting
+            scene.add(plane);
+
+            // Grid Helper (visuellt rutnät)
+            gridHelper = new THREE.GridHelper(BOARD_WIDTH, BOARD_SIZE_STUDS, 0x888888, 0x888888);
+            gridHelper.position.y = 0.1; // Lätt lyft för att undvika z-fighting
+            scene.add(gridHelper);
+
+            // Raycaster och pekare
+            raycaster = new THREE.Raycaster();
+            pointer = new THREE.Vector2();
+
+            // Skapa den första "ghost"-klossen
+            createPlacementGhost();
+            updateCurrentInfo();
+
+            // Kontroller
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; // Ger mjukare rotation
+            controls.dampingFactor = 0.1;
+            controls.screenSpacePanning = false; // Behåll panorering i planet
+            controls.maxPolarAngle = Math.PI / 2 - 0.05; // Begränsa kameran från att gå under brädet
+            controls.minDistance = 50;
+            controls.maxDistance = BOARD_WIDTH * 1.5;
+            controls.target.set(0, 0, 0); // Fokusera på mitten av brädet
+            controls.update();
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('click', onPointerClick); // Använd 'click' för att undvika placering vid kameradragning
+            document.addEventListener('keydown', onKeyDown);
+
+            // Starta animationsloopen
+            animate();
+        }
+
+        // --- Skapa och uppdatera Ghost Kloss ---
+        function createPlacementGhost() {
+            if (placementGhost) {
+                scene.remove(placementGhost);
+                placementGhost.geometry.dispose();
+                placementGhost.material.dispose();
+            }
+
+            const brickType = BRICK_TYPES[currentBrickIndex];
+            const geometry = new THREE.BoxGeometry(
+                brickType.size.x * STUD_SIZE,
+                BRICK_HEIGHT,
+                brickType.size.z * STUD_SIZE
+            );
+            const material = new THREE.MeshStandardMaterial({
+                color: COLORS[currentColorIndex],
+                opacity: 0.5,
+                transparent: true
+            });
+            placementGhost = new THREE.Mesh(geometry, material);
+            placementGhost.castShadow = true; // Ghost ska också kasta skugga
+            placementGhost.visible = false; // Starta osynlig tills musen är över brädet
+            scene.add(placementGhost);
+        }
+
+        // --- Skapa en riktig kloss ---
+        function createBrick(position, color, size, rotationY) {
+            const geometry = new THREE.BoxGeometry(
+                size.x * STUD_SIZE,
+                BRICK_HEIGHT,
+                size.z * STUD_SIZE
+            );
+            const material = new THREE.MeshStandardMaterial({ color: color });
+            const brick = new THREE.Mesh(geometry, material);
+            brick.position.copy(position);
+            brick.rotation.y = rotationY;
+            brick.castShadow = true;
+            brick.receiveShadow = true; // Klossar ska också ta emot skuggor
+
+            // Skapa en bounding box för kollision
+            brick.userData.boundingBox = new THREE.Box3().setFromObject(brick);
+
+            scene.add(brick);
+            placedBricks.push(brick);
+        }
+
+        // --- Kollisionsdetektering ---
+        function checkCollision(ghost) {
+            // Uppdatera ghostens bounding box baserat på dess nuvarande transformering
+            const ghostBox = new THREE.Box3().setFromObject(ghost);
+
+            // 1. Kolla om klossen är utanför brädet (ungefärligt)
+            const halfWidth = (ghost.geometry.parameters.width || 0) / 2;
+            const halfDepth = (ghost.geometry.parameters.depth || 0) / 2;
+            if (ghost.position.x - halfWidth < -BOARD_WIDTH / 2 ||
+                ghost.position.x + halfWidth > BOARD_WIDTH / 2 ||
+                ghost.position.z - halfDepth < -BOARD_DEPTH / 2 ||
+                ghost.position.z + halfDepth > BOARD_DEPTH / 2) {
+                return true; // Utanför brädet
+            }
+
+            // 2. Kolla kollision med andra placerade klossar
+            for (const brick of placedBricks) {
+                // Uppdatera brickans bounding box ifall den skulle flyttas (inte aktuellt här, men bra praxis)
+                // brick.userData.boundingBox.setFromObject(brick);
+                if (ghostBox.intersectsBox(brick.userData.boundingBox)) {
+                    // För att tillåta stapling, kolla om de bara nuddar varandra på Y-axeln
+                    const yTolerance = 0.1; // Liten tolerans
+                    const ghostTop = ghost.position.y + BRICK_HEIGHT / 2;
+                    const ghostBottom = ghost.position.y - BRICK_HEIGHT / 2;
+                    const brickTop = brick.position.y + BRICK_HEIGHT / 2;
+                    const brickBottom = brick.position.y - BRICK_HEIGHT / 2;
+
+                    // Om ghostens botten är ungefär vid brickans topp (stapling) är det OK
+                    const stacking = Math.abs(ghostBottom - brickTop) < yTolerance;
+
+                    if (!stacking) {
+                         // Om de överlappar på annat sätt än precis ovanpå
+                         // console.log("Collision detected with existing brick!");
+                        return true;
+                    }
+                     // Annars, om de bara nuddar vid stapling, är det inte en "blockerande" kollision.
+                     // Raycastern kommer dock att placera den *på* brickan, så överlapp bör inte ske om logiken är rätt.
+                }
+            }
+
+            // 3. Förhindra placering under brädet (eller för långt ner)
+            if (ghost.position.y < BRICK_HEIGHT / 2 - 0.1) {
+                return true;
+            }
+
+
+            return false; // Ingen kollision
+        }
+
+        // --- Snappa till rutnätet ---
+        function snapToGrid(position, brickSizeWorld, rotation) {
+             // Rotation påverkar hur offset beräknas
+            const rotatedSizeX = (rotation === 1 || rotation === 3) ? brickSizeWorld.z : brickSizeWorld.x;
+            const rotatedSizeZ = (rotation === 1 || rotation === 3) ? brickSizeWorld.x : brickSizeWorld.z;
+
+            // Beräkna närmaste grid-position för klossens *centrum*
+            const snappedX = Math.round(position.x / STUD_SIZE) * STUD_SIZE;
+            const snappedZ = Math.round(position.z / STUD_SIZE) * STUD_SIZE;
+
+            // Justera positionen så att klossen centreras korrekt på studsen
+            // Om bredden/djupet är udda antal studs (t.ex. 1xN), ska centrum vara mitt på en stud-linje (X.0)
+            // Om bredden/djupet är jämnt antal studs (t.ex. 2xN), ska centrum vara mellan stud-linjer (X.5)
+            const offsetX = (rotatedSizeX / STUD_SIZE) % 2 === 0 ? STUD_SIZE / 2 : 0;
+            const offsetZ = (rotatedSizeZ / STUD_SIZE) % 2 === 0 ? STUD_SIZE / 2 : 0;
+
+             // Justera x och z baserat på om vi landade på en linje eller mitt i en ruta
+             let finalX = snappedX;
+             if (offsetX !== 0 && Math.abs(position.x - snappedX) < STUD_SIZE / 2) { // Närmare linjen än mitten av nästa ruta
+                 finalX += Math.sign(position.x - snappedX) * offsetX; // Flytta till mellanrummet
+             } else if (offsetX === 0 && Math.abs(position.x - snappedX) > STUD_SIZE / 4) { // Närmare mitten av rutan än linjen (för udda) - behöver ingen extra offset
+                 finalX = snappedX; // Stanna på linjen
+             } else if(offsetX !== 0) { // Närmare mitten på rutan än linjen (för jämna)
+                  finalX = Math.floor(position.x / STUD_SIZE) * STUD_SIZE + offsetX;
+             }
+
+
+             let finalZ = snappedZ;
+             if (offsetZ !== 0 && Math.abs(position.z - snappedZ) < STUD_SIZE / 2) {
+                 finalZ += Math.sign(position.z - snappedZ) * offsetZ;
+             } else if (offsetZ === 0 && Math.abs(position.z - snappedZ) > STUD_SIZE / 4) {
+                 finalZ = snappedZ;
+             } else if (offsetZ !== 0) {
+                 finalZ = Math.floor(position.z / STUD_SIZE) * STUD_SIZE + offsetZ;
+             }
+
+            // Y-positionen bestäms av träffpunkten + halva klossens höjd
+            const snappedY = position.y + BRICK_HEIGHT / 2;
+
+
+            return new THREE.Vector3(finalX, snappedY, finalZ);
+        }
+
+         // --- Uppdatera UI ---
+        function updateCurrentInfo() {
+            currentBrickSpan.textContent = BRICK_TYPES[currentBrickIndex].name;
+            currentColorSpan.style.backgroundColor = `#${COLORS[currentColorIndex].toString(16).padStart(6, '0')}`;
+        }
+
+        // --- Event Handlers ---
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function onPointerMove(event) {
+            // Normalisera muspositionen (-1 till +1)
+            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            // Uppdatera raycaster
+            raycaster.setFromCamera(pointer, camera);
+
+            // Hitta objekt som strålen träffar (bräde + placerade klossar)
+            const intersects = raycaster.intersectObjects([...placedBricks, plane]); // Inkludera planet
+
+            if (intersects.length > 0) {
+                const intersection = intersects[0]; // Närmaste träffpunkt
+
+                // Ignorera träffar med ghosten själv
+                if (intersection.object === placementGhost) {
+                    if (intersects.length > 1) {
+                        intersection = intersects[1]; // Ta nästa objekt
+                    } else {
+                         placementGhost.visible = false;
+                         canPlace = false;
+                         return; // Träffade bara ghosten
+                    }
+                }
+
+                const brickType = BRICK_TYPES[currentBrickIndex];
+                const brickSizeWorld = new THREE.Vector3(
+                    brickType.size.x * STUD_SIZE,
+                    BRICK_HEIGHT,
+                    brickType.size.z * STUD_SIZE
+                );
+
+                // Beräkna snappad position
+                // Om vi träffar en annan kloss, ska Y baseras på den klossens topp
+                let targetY = 0;
+                if (intersection.object !== plane) {
+                    // Träffade en annan kloss
+                    targetY = intersection.object.position.y + BRICK_HEIGHT / 2; // Stapla ovanpå
+                }
+                 // Annars är targetY 0 (träffade planet)
+
+                const snappedPosition = snapToGrid(
+                    new THREE.Vector3(intersection.point.x, targetY, intersection.point.z),
+                    brickSizeWorld,
+                    currentRotation
+                );
+
+                placementGhost.position.copy(snappedPosition);
+                placementGhost.rotation.y = currentRotation * (Math.PI / 2);
+                placementGhost.visible = true;
+
+                // Kolla kollision på den nya positionen
+                if (checkCollision(placementGhost)) {
+                    placementGhost.material.color.set(0xff0000); // Röd vid kollision
+                    canPlace = false;
+                } else {
+                    placementGhost.material.color.set(COLORS[currentColorIndex]); // Återställ färg
+                    canPlace = true;
+                }
+
+            } else {
+                placementGhost.visible = false; // Göm ghost om musen inte är över något placerbart
+                canPlace = false;
+            }
+        }
+
+        function onPointerClick(event) {
+            // Förhindra placering om man drar kameran (OrbitControls hanterar detta internt)
+             if (controls.dragging) return;
+
+             // Placera bara om positionen är giltig och ghosten synlig
+             if (canPlace && placementGhost.visible) {
+                const brickType = BRICK_TYPES[currentBrickIndex];
+                const brickSizeWorld = new THREE.Vector3(
+                    brickType.size.x * STUD_SIZE,
+                    BRICK_HEIGHT,
+                    brickType.size.z * STUD_SIZE
+                );
+                createBrick(
+                    placementGhost.position,
+                    COLORS[currentColorIndex],
+                    brickType.size, // Skicka storlek i studs
+                    placementGhost.rotation.y
+                );
+            }
+        }
+
+         function onKeyDown(event) {
+            switch (event.key) {
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                    currentBrickIndex = parseInt(event.key) - 1;
+                    currentRotation = 0; // Återställ rotation vid byte
+                    createPlacementGhost(); // Skapa ny ghost med rätt storlek
+                    updateCurrentInfo();
+                     // Tvinga en uppdatering av ghostens position direkt
+                    onPointerMove({clientX: event.clientX, clientY: event.clientY}); // Simulerar en mousemove
+                    break;
+                case 'r':
+                case 'R':
+                    currentRotation = (currentRotation + 1) % 4;
+                    placementGhost.rotation.y = currentRotation * (Math.PI / 2);
+                     // Tvinga uppdatering och kollisionscheck
+                    onPointerMove({clientX: event.clientX, clientY: event.clientY});
+                    break;
+                case 'c':
+                case 'C':
+                    currentColorIndex = (currentColorIndex + 1) % COLORS.length;
+                    placementGhost.material.color.set(COLORS[currentColorIndex]);
+                    updateCurrentInfo();
+                    // Tvinga uppdatering och kollisionscheck (om canPlace är false pga färgbyte)
+                    onPointerMove({clientX: event.clientX, clientY: event.clientY});
+                    break;
+            }
+        }
+
+        // --- Animationsloop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            controls.update(); // Uppdatera kamerakontroller
+
+            renderer.render(scene, camera);
+        }
+
+        // --- Kör igång ---
+        init();
+
+    </script>
+</body>
+</html>

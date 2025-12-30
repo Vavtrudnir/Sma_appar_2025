@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Miniräknare med historik och borttagning</title>
+  <style>
+    * { box-sizing: border-box; margin:0; padding:0; }
+    body {
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      background:#f0f0f0;
+      font-family:sans-serif;
+      padding:20px;
+    }
+    .calculator {
+      background:#222;
+      padding:20px;
+      border-radius:10px;
+      box-shadow:0 4px 10px rgba(0,0,0,0.3);
+      width:280px;
+    }
+    #display {
+      width:100%;
+      height:50px;
+      font-size:1.5rem;
+      text-align:right;
+      margin-bottom:10px;
+      padding-right:10px;
+      border:none;
+      border-radius:5px;
+      background:#333;
+      color:#fff;
+    }
+    .buttons {
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      grid-template-rows:repeat(5,60px);
+      grid-gap:10px;
+    }
+    .buttons button {
+      font-size:1.2rem;
+      border:none;
+      border-radius:5px;
+      background:#444;
+      color:#fff;
+      cursor:pointer;
+      transition:background .2s;
+    }
+    .buttons button:hover { background:#555; }
+    .operator { background:#fe9241; }
+    .operator:hover { background:#fb8c3a; }
+    #equal {
+      background:#37b24d;
+      grid-row:3 / span 2;
+      grid-column:4;
+    }
+    #equal:hover { background:#2f9e44; }
+    .zero { grid-row:4; grid-column:1 / span 2; }
+    .decimal { grid-row:5; grid-column:1; }
+
+    /* Historik-styling */
+    .history {
+      margin-top:30px;
+      background:#fff;
+      padding:15px;
+      border-radius:10px;
+      box-shadow:0 4px 10px rgba(0,0,0,0.1);
+      width:280px;
+    }
+    .history h2 {
+      font-size:1.2rem;
+      margin-bottom:10px;
+      color:#333;
+    }
+    #history-list {
+      list-style:none;
+      max-height:200px;
+      overflow-y:auto;
+      margin-bottom:10px;
+      padding-left:0;
+    }
+    #history-list li {
+      position: relative;
+      padding:5px 30px 5px 0;
+      border-bottom:1px solid #e0e0e0;
+      font-size:1rem;
+      color:#444;
+    }
+    /* delete-knapp */
+    .delete-btn {
+      position:absolute;
+      right:5px;
+      top:50%;
+      transform:translateY(-50%);
+      border:none;
+      background:none;
+      color:#c00;
+      font-size:1.2rem;
+      cursor:pointer;
+    }
+    #history-total {
+      font-weight:bold;
+      text-align:right;
+      color:#222;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="calculator">
+    <input type="text" id="display" disabled placeholder="0">
+    <div class="buttons">
+      <button class="operator" data-value="C">C</button>
+      <button class="operator" data-value="/">÷</button>
+      <button class="operator" data-value="*">×</button>
+      <button class="operator" data-value="-">−</button>
+
+      <button data-value="7">7</button>
+      <button data-value="8">8</button>
+      <button data-value="9">9</button>
+      <button class="operator" data-value="+">+</button>
+
+      <button data-value="4">4</button>
+      <button data-value="5">5</button>
+      <button data-value="6">6</button>
+      <button id="equal" data-value="=">=</button>
+
+      <button data-value="1">1</button>
+      <button data-value="2">2</button>
+      <button data-value="3">3</button>
+      <button class="zero" data-value="0">0</button>
+
+      <button class="decimal" data-value=".">.</button>
+    </div>
+  </div>
+
+  <div class="history">
+    <h2>Historik</h2>
+    <ul id="history-list"></ul>
+    <div id="history-total">Summa: 0</div>
+  </div>
+
+  <script>
+    const display = document.getElementById('display');
+    const historyList = document.getElementById('history-list');
+    const historyTotal = document.getElementById('history-total');
+    let total = 0;
+
+    // Hantera knapptryck på kalkylatorn
+    document.querySelectorAll('.calculator button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const v = btn.getAttribute('data-value');
+        if (v === 'C') {
+          display.value = '';
+        }
+        else if (v === '=') {
+          try {
+            const res = eval(display.value);
+            if (typeof res === 'number' && !isNaN(res)) {
+              display.value = res;
+              addHistoryItem(res);
+            } else {
+              throw 'Inte en siffra';
+            }
+          } catch {
+            display.value = 'Error';
+            setTimeout(() => display.value = '', 800);
+          }
+        }
+        else {
+          display.value += v;
+        }
+      });
+    });
+
+    // Lägg till ett historik‑element
+    function addHistoryItem(value) {
+      total += value;
+      updateTotal();
+
+      const li = document.createElement('li');
+      li.textContent = value;
+      li.dataset.value = value;        // sparar värdet för borttagning
+
+      const btn = document.createElement('button');
+      btn.textContent = '×';
+      btn.className = 'delete-btn';
+      li.appendChild(btn);
+
+      historyList.appendChild(li);
+      // scrolla ner automatiskt
+      historyList.scrollTop = historyList.scrollHeight;
+    }
+
+    // Uppdatera summan i UI:t
+    function updateTotal() {
+      historyTotal.textContent = 'Summa: ' + total;
+    }
+
+    // Delegations‑lyssnare för delete‑knappar
+    historyList.addEventListener('click', e => {
+      if (e.target.classList.contains('delete-btn')) {
+        const li = e.target.parentElement;
+        const val = parseFloat(li.dataset.value);
+        total -= val;
+        updateTotal();
+        li.remove();
+      }
+    });
+  </script>
+
+</body>
+</html>

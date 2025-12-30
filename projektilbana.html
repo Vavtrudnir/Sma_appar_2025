@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<title>Projektilsimulator</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+ body{font-family:Arial, sans-serif; margin:1rem; max-width:950px}
+ h1{margin-bottom:0.2rem}
+ fieldset{border:1px solid #bbb; padding:0.6rem 0.8rem; margin-bottom:0.8rem}
+ legend{padding:0 6px; font-weight:bold}
+ label{margin-right:0.6rem; white-space:nowrap}
+ input,select{padding:4px 6px; margin:2px 4px; width:90px}
+ input[type="checkbox"]{width:auto}
+ #chartContainer{max-width:900px; height:420px; margin-bottom:1rem}
+ #result{background:#f7f7f7; padding:8px; border:1px solid #ccc; white-space:pre; overflow:auto; max-height:300px}
+ button{padding:6px 12px; margin-right:10px}
+</style>
+</head>
+<body>
+<h1>Projektilsimulator (JavaScript‑port)</h1>
+
+<fieldset>
+ <legend>Utgångsvärden</legend>
+ <label>Hastighet (m/s)
+  <input type="number" id="vel" value="500" step="0.1">
+ </label>
+ <label>Vinkel (°)
+  <input type="number" id="ang" value="45" step="0.1">
+ </label>
+ <label>Massa (kg)
+  <input type="number" id="mass" value="10" step="0.01">
+ </label>
+ <label>Plats
+  <select id="body">
+   <option value="Jorden">Jorden (9.81)</option>
+   <option value="Månen">Månen (1.62)</option>
+   <option value="Mars">Mars (3.71)</option>
+  </select>
+ </label>
+</fieldset>
+
+<fieldset>
+ <legend>Fysik & Miljö</legend>
+ <label><input type="checkbox" id="useDrag" checked> Luftmotstånd</label>
+ <label>C<sub>d</sub>
+  <input type="number" id="cd" value="0.47" step="0.01">
+ </label>
+ <label>Diameter (m)
+  <input type="number" id="diam" value="0.155" step="0.001">
+ </label>
+ <label>Tryck (Pa)
+  <input type="number" id="press" value="101325">
+ </label>
+ <br>
+ <label><input type="checkbox" id="useWind" checked> Vind</label>
+ <label>Vind&nbsp;X (m/s)
+  <input type="number" id="windX" value="0" step="0.1">
+ </label>
+ <label>Vind&nbsp;Y (m/s)
+  <input type="number" id="windY" value="0" step="0.1">
+ </label>
+ <label>dt (s)
+  <input type="number" id="dt" value="0.01" step="0.001" style="width:70px">
+ </label>
+ <label>Målhöjd (m)
+  <input type="number" id="targetAlt" value="0" step="0.1">
+ </label>
+</fieldset>
+
+<button id="runBtn">Beräkna bana</button>
+<label><input type="checkbox" id="showIdeal" checked> Visa ideal nedslag</label>
+
+<div id="chartContainer">
+ <canvas id="trajChart"></canvas>
+</div>
+
+<h2>Parametrar &amp; Resultat</h2>
+<pre id="result">Klicka på "Beräkna bana"…</pre>
+
+<script>
+// Konstantdata
+const GRAVITY = { 'Jorden': 9.81, 'Månen': 1.62, 'Mars': 3.71 };
+const RHO_STD = 1.225;
+const P_STD = 101325;
+
+let chart;
+function initChart() {
+  const ctx = document.getElementById('trajChart');
+  chart = new Chart(ctx, {
+    type: 'scatter',
+    data: { datasets: [] },
+    options: {
+      animation: false,
+      plugins: { legend: { display: true } },
+      scales: {
+        x: { title: { display: true, text: 'Avstånd (m)' } },
+        y: { title: { display: true, text: 'Höjd (m)' } }
+      }
+    }
+  });
+}
+initChart();
+
+function calcIdeal(v0, angleDeg, g) {
+  const rad = angleDeg * Math.PI / 180;
+  return (v0 * v0 * Math.sin(2 * rad)) / g;
+}
+
+function simulate() {
+  const v0 = +document.getElementById('vel').value;
+  const angle = +document.getElementById('ang').value;
+  const mass = +document.getElementById('mass').value;
+  const body = document.getElementById('body').value;
+  const g = GRAVITY[body];
+  const useDrag = document.getElementById('useDrag').checked && body === 'Jorden';
+  const cd = +document.getElementById('cd').value;
+  const diam = +document.getElementById('diam').value;
+  const press = +document.getElementById('press').value;
+  const useWind = document.getElementById('useWind').checked && body === 'Jorden';
+  const windX = +document.getElementById('windX').value;
+  const windY = +document.getElementById('windY').value;
+  const dt = +document.getElementById('dt').value || 0.01;
+  const targetAlt = +document.getElementById('targetAlt').value;
+
+  if (mass <= 0 || diam <= 0 || dt <= 0) {
+    alert('Kontrollera massa, diameter eller dt');
+    return;
+  }
+
+  // Initialtillstånd
+  const rad = angle * Math.PI / 180;
+  const pos = [0, 0];
+  const vel = [v0 * Math.cos(rad), v0 * Math.sin(rad)];
+  const radius = diam / 2;
+  const area = Math.PI * radius * radius;
+  const rho = useDrag ? RHO_STD * (press / P_STD) : 0;
+  const k = 0.5 * rho * cd * area;
+  const wind = [windX, windY];
+  const points = [[0, 0]];
+  let t = 0, maxH = 0, distPeak = 0, peak = false;
+  const maxSim = 1200; // säkerhets­brytare
+
+  while ((pos[1] >= targetAlt || t < dt) && t < maxSim) {
+    // Krafter
+    const Fg = [0, -mass * g];
+    const vrel = [vel[0] - wind[0], vel[1] - wind[1]];
+    const speedRel = Math.hypot(vrel[0], vrel[1]);
+    const Fd = (useDrag && speedRel > 0) ? [ -k * speedRel * vrel[0], -k * speedRel * vrel[1] ] : [0, 0];
+
+    // Acceleration
+    const acc = [(Fg[0] + Fd[0]) / mass, (Fg[1] + Fd[1]) / mass];
+    vel[0] += acc[0] * dt; vel[1] += acc[1] * dt;
+    pos[0] += vel[0] * dt; pos[1] += vel[1] * dt;
+    t += dt; points.push([pos[0], pos[1]]);
+
+    if (!peak && vel[1] < 0) { peak = true; maxH = pos[1]; distPeak = pos[0]; }
+    if (pos[1] < targetAlt) break; // träff mark/mål
+  }
+
+  // Resultat
+  const finalSpeed = Math.hypot(vel[0], vel[1]);
+  const KE = 0.5 * mass * finalSpeed * finalSpeed;
+  const range = pos[0];
+  const ideal = calcIdeal(v0, angle, g);
+
+  let res = `--- Parametrar ---\n`;
+  res += `v0: ${v0.toFixed(2)} m/s\n`;
+  res += `vinkel: ${angle.toFixed(2)}°\n`;
+  res += `massa: ${mass} kg\n`;
+  res += `plats: ${body} (g=${g})\n`;
+  res += `drag: ${useDrag ? 'på' : 'av'}, vind: ${useWind ? 'på' : 'av'}\n`;
+  res += `Cd: ${cd}, diam: ${diam} m, dt: ${dt}s\n`;
+  res += `tryck: ${press} Pa, målhöjd: ${targetAlt} m\n\n`;
+  res += `--- Resultat ---\n`;
+  res += `Flygtid: ${t.toFixed(3)} s\n`;
+  res += `Räckvidd: ${range.toFixed(3)} m\n`;
+  res += `Högsta höjd: ${maxH.toFixed(3)} m (x=${distPeak.toFixed(3)} m)\n`;
+  res += `Slut­hastighet: ${finalSpeed.toFixed(3)} m/s\n`;
+  res += `Kinetisk energi: ${KE.toFixed(1)} J\n`;
+  if (!Number.isNaN(ideal)) {
+    const miss = range - ideal;
+    res += `Ideal räckvidd (plan mark): ${ideal.toFixed(3)} m\n`;
+    res += `Δ räckvidd: ${(miss >= 0 ? '+' : '') + miss.toFixed(3)} m`;
+  }
+  document.getElementById('result').textContent = res;
+
+  // Plot
+  const showIdeal = document.getElementById('showIdeal').checked;
+  const scatterData = points.map(p => ({ x: p[0], y: p[1] }));
+  const datasets = [{
+    label: 'Faktisk bana',
+    data: scatterData,
+    showLine: true,
+    borderColor: 'blue',
+    pointRadius: 1
+  }];
+  if (!Number.isNaN(ideal) && showIdeal) {
+    datasets.push({
+      label: `Ideal nedslag (${ideal.toFixed(1)} m)`,
+      data: [{ x: ideal, y: targetAlt }],
+      pointStyle: 'cross',
+      pointBorderColor: 'green',
+      pointBorderWidth: 2,
+      pointRadius: 8,
+      showLine: false
+    });
+  }
+  chart.data.datasets = datasets;
+  chart.update();
+}
+
+document.getElementById('runBtn').addEventListener('click', simulate);
+</script>
+</body>
+</html>

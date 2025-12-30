@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vindhastighetsomvandlare</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f5f7fa;
+      color: #222;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: auto;
+      padding: 1.5rem;
+    }
+
+    .card {
+      background: #fff;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    label {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.7rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      background: #0077ff;
+      color: #fff;
+      transition: opacity 0.2s ease;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .output {
+      margin-top: 1.5rem;
+      font-size: 1.1rem;
+      line-height: 1.6;
+    }
+
+    .info {
+      margin-top: 2rem;
+      background: #eef3ff;
+      padding: 1rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    .info h2 {
+      margin-top: 0;
+      font-size: 1.1rem;
+    }
+
+    ul {
+      padding-left: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Vindhastighetsomvandlare</h1>
+
+      <label for="mps">Vindhastighet (m/s)</label>
+      <input type="number" id="mps" placeholder="Ange värde i meter per sekund" />
+
+      <button id="convertBtn">Omvandla</button>
+
+      <div class="output" id="output"></div>
+
+      <div class="info">
+        <h2>Om enheterna</h2>
+        <ul>
+          <li><strong>Knut (kn)</strong>: En nautisk mil (1 852&nbsp;meter) per timme. 1&nbsp;kn ≈ 1,852&nbsp;km/h. Vanlig inom sjöfart och flyg.</li>
+          <li><strong>Kilometer per timme (km/h)</strong>: Standardenhet för hastighet på land i Sverige och många andra länder.</li>
+          <li><strong>Beauforts skala</strong>: Empirisk skala från 0 (stiltje) till 12 (orkan) som beskriver vindens effekter på hav och land. Utvecklad 1805 av den brittiske amiralen Sir Francis Beaufort.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Konverteringsfunktioner
+    function mpsTillKnots(mps) {
+      return mps * 1.94384;
+    }
+
+    function mpsTillKmH(mps) {
+      return mps * 3.6;
+    }
+
+    function mpsTillBeaufort(mps) {
+      if (mps < 0.3) return 0;
+      if (mps < 1.6) return 1;
+      if (mps < 3.4) return 2;
+      if (mps < 5.5) return 3;
+      if (mps < 8.0) return 4;
+      if (mps < 10.8) return 5;
+      if (mps < 13.9) return 6;
+      if (mps < 17.2) return 7;
+      if (mps < 20.8) return 8;
+      if (mps < 24.5) return 9;
+      if (mps < 28.5) return 10;
+      if (mps < 32.7) return 11;
+      return 12; // 32.7 m/s eller mer (orkan)
+    }
+
+    // Händelselyssnare för knappen
+    document.getElementById("convertBtn").addEventListener("click", () => {
+      const mpsInput = document.getElementById("mps").value;
+      const mps = parseFloat(mpsInput.replace(",", ".")); // Hantera både svenska och engelska decimaler
+      const output = document.getElementById("output");
+
+      if (isNaN(mps)) {
+        output.innerHTML = "<span style='color: red;'>Ange ett giltigt numeriskt värde.</span>";
+        return;
+      }
+
+      const knots = mpsTillKnots(mps).toFixed(2);
+      const kmh = mpsTillKmH(mps).toFixed(2);
+      const beaufort = mpsTillBeaufort(mps);
+
+      output.innerHTML = `
+        <p><strong>${mps}</strong> m/s motsvarar:</p>
+        <ul>
+          <li>${knots} kn</li>
+          <li>${kmh} km/h</li>
+          <li>Beaufortskala: ${beaufort}</li>
+        </ul>
+      `;
+    });
+  </script>
+</body>
+</html>

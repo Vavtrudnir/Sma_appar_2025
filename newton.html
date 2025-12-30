@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kraft, Massa, Acceleration (F=ma) & Rörelse</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Samma CSS som tidigare */
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; background-color: #f0f2f5; margin: 0; padding: 20px 0; }
+        .calculator { background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); text-align: center; max-width: 450px; width: 90%; }
+        h1 { color: #333; margin-bottom: 15px; font-size: 1.4em; }
+        .main-description { color: #666; margin-bottom: 25px; font-size: 0.9em; }
+        .formula-description { background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; margin-bottom: 25px; text-align: left; font-size: 0.85em; }
+        .formula-description h4 { margin-top: 0; margin-bottom: 10px; color: #495057; font-size: 1.1em; }
+        .formula-description p { margin-bottom: 10px; line-height: 1.4; color: #343a40; font-size: 1em; }
+        .formula-description code { background-color: #e9ecef; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 1.1em; }
+        .formula-description strong { color: #212529; }
+        .formula-description ul { padding-left: 20px; margin-top: 5px; margin-bottom: 10px; }
+        .formula-description li { margin-bottom: 4px; }
+        .formula-description .sub-heading { font-weight: bold; color: #495057; display: block; margin-top: 8px; margin-bottom: 3px; } /* Ändrade display till block för bättre layout */
+        .input-group { margin-bottom: 20px; text-align: left; display: flex; align-items: center; }
+        .input-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; width: 100%; }
+        .input-group input[type="number"] { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 1em; margin-right: 8px; }
+        .input-group .unit { font-size: 0.9em; color: #555; white-space: nowrap; }
+        .input-group .unit-symbol { font-weight: bold; }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+        .button-group { margin-top: 20px; }
+        button { background-color: #28a745; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-size: 1em; margin-top: 10px; margin-right: 5px; transition: background-color 0.2s ease; }
+        button:hover { background-color: #218838; }
+        button#clearBtn { background-color: #6c757d; }
+        button#clearBtn:hover { background-color: #5a6268; }
+        .result-section { margin-top: 25px; padding: 15px; background-color: #e9ecef; border-radius: 4px; text-align: left; color: #333; }
+        .result-section h3 { margin-top: 0; margin-bottom: 10px; font-size: 1.1em; color: #555; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        .result-section p { margin: 5px 0; font-size: 1em; color: #333; font-weight: normal; }
+        .result-section .value { font-weight: bold; }
+        .result-section ul { list-style: none; padding-left: 0; margin-top: 5px; }
+        .result-section li { font-size: 0.9em; padding: 3px 0; border-bottom: 1px dashed #ddd; }
+        .result-section li:last-child { border-bottom: none; }
+        .result-section.error { color: #dc3545; background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .result-section.error h3 { color: #721c24; border-bottom-color: #f5c6cb; }
+        .result-section.error p { color: #721c24; }
+        .chart-container { margin-top: 30px; position: relative; height: 250px; width: 100%; max-width: 400px; margin-left: auto; margin-right: auto; }
+        .chart-container p { font-size: 0.8em; color: #666; text-align: center; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="calculator">
+        <h1>Kraft, Massa, Acceleration</h1>
+        <p class="main-description">Denna kalkylator använder Newtons andra lag för att beräkna förhållandet mellan kraft, massa och acceleration. Ange två av dessa värden för att beräkna det tredje.</p>
+
+        <!-- ****** UPPDATERAT INNEHÅLL HÄR ****** -->
+        <div class="formula-description">
+            <h4>Formel: Newtons andra lag & Förklaringar</h4>
+
+            <p><span class="sub-heading">Grundformeln:</span> Sambandet mellan <strong>nettokraft (F)</strong>, <strong>massa (m)</strong> och <strong>acceleration (a)</strong> som en kraft orsakar på massan beskrivs av: <strong><code>F = m × a</code></strong>. Kalkylatorn använder denna formel och dess omställningar:</p>
+            <ul>
+                <li><code>F = m × a</code></li>
+                <li><code>m = F / a</code></li>
+                <li><code>a = F / m</code></li>
+            </ul>
+
+            <p><span class="sub-heading">Enheter som används:</span></p>
+            <ul>
+                 <li>Kraft (F): <strong>Newton (N)</strong></li>
+                 <li>Massa (m): <strong>Kilogram (kg)</strong></li>
+                 <li>Acceleration (a): <strong>Meter per sekund-kvadrat (m/s²)</strong></li>
+            </ul>
+
+            <p><span class="sub-heading">Vad är en Newton (N)?</span> Newton är SI-enheten för kraft. <strong>1 N</strong> är den kraft som krävs för att ge en massa på <strong>1 kg</strong> en acceleration på <strong>1 m/s²</strong> (<code>1 N = 1 kg·m/s²</code>).</p>
+
+            <p><span class="sub-heading">Vad är Acceleration (a)?</span> Acceleration är ett mått på hur snabbt ett objekts hastighet förändras över tid (ändring av fart och/eller riktning). Enheten <strong>m/s²</strong> betyder "meter per sekund, per sekund".</p>
+
+            <p><span class="sub-heading">Exempel på Tolkning av Resultat:</span> Om kalkylatorn visar: <code>Beräknad Acceleration (a): 50 m/s² (10000 N / 200 kg)</code> betyder det att objektet får en konstant acceleration på 50 m/s², vilket innebär att dess hastighet ökar med 50 m/s varje sekund.</p>
+
+            <p><span class="sub-heading">Grafen nedan:</span> Visar <strong>tillryggalagd sträcka (s)</strong> från startpunkten över tid (t), under förutsättning att objektet startar från vila (<code>v₀=0</code>) och har den beräknade konstanta accelerationen (a). Beräknas med formeln <code>s = ½ × a × t²</code>.</p>
+        </div>
+        <!-- ****** SLUT PÅ UPPDATERAT INNEHÅLL ****** -->
+
+        <!-- Inputfält -->
+        <div class="input-group">
+            <label for="force">Kraft (F):</label>
+            <input type="number" id="force" placeholder="t.ex. 50"><span class="unit"><span class="unit-symbol">N</span> (Newton)</span>
+        </div>
+        <div class="input-group">
+            <label for="mass">Massa (m):</label>
+            <input type="number" id="mass" placeholder="t.ex. 5"><span class="unit"><span class="unit-symbol">kg</span> (Kilogram)</span>
+        </div>
+        <div class="input-group">
+            <label for="acceleration">Acceleration (a):</label>
+            <input type="number" id="acceleration" placeholder="t.ex. 10"><span class="unit"><span class="unit-symbol">m/s²</span> (m/s²)</span>
+        </div>
+
+        <div class="button-group">
+            <button id="calculateBtn">Beräkna</button>
+            <button id="clearBtn" type="button">Rensa</button>
+        </div>
+
+        <!-- Resultatområde för F, m eller a -->
+        <div id="resultArea" class="result-section" style="display: none;">
+             <h3>Resultat (F=ma)</h3>
+             <p id="calculatedValueP"></p>
+        </div>
+
+        <!-- Resultatområde för sträcklista -->
+        <div id="distanceListSection" class="result-section" style="display: none;">
+            <h3>Sträcka per Tidsintervall (från vila)</h3>
+            <ul id="distanceListData">
+                <!-- Listelement (li) genereras här av JavaScript -->
+            </ul>
+        </div>
+
+        <!-- Felmeddelandeområde -->
+         <div id="errorArea" class="result-section error" style="display: none;">
+             <h3>Fel</h3>
+             <p id="errorMessage"></p>
+        </div>
+
+         <!-- Graf-område -->
+         <div id="chartSection" class="chart-container" style="display: none;">
+             <p>Grafen visar <strong>tillryggalagd sträcka (m)</strong> från start över tid (s).</p>
+             <canvas id="motionChartCanvas"></canvas>
+         </div>
+    </div>
+
+    <script>
+        // Referenser
+        const forceInput = document.getElementById('force');
+        const massInput = document.getElementById('mass');
+        const accelerationInput = document.getElementById('acceleration');
+        const calculateBtn = document.getElementById('calculateBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const resultArea = document.getElementById('resultArea');
+        const calculatedValueP = document.getElementById('calculatedValueP');
+        const errorArea = document.getElementById('errorArea');
+        const errorMessageP = document.getElementById('errorMessage');
+        const chartSection = document.getElementById('chartSection');
+        const chartCanvas = document.getElementById('motionChartCanvas');
+        const distanceListSection = document.getElementById('distanceListSection');
+        const distanceListData = document.getElementById('distanceListData'); // Kontrollera ID noga!
+
+        let motionChart = null; // För grafen
+
+        // Formateringsfunktion
+        function formatNumber(num) {
+            if (isNaN(num) || num === null || num === undefined) return ''; // Robustare check
+            // Justera precision baserat på storlek för bättre läsbarhet
+            if (num === 0) return '0';
+            if (Math.abs(num) > 0 && Math.abs(num) < 0.001) { return num.toExponential(2); } // Exponentiell form för mycket små tal
+            if (Math.abs(num) > 1000000 || (Math.abs(num) > 0 && Math.abs(num) < 0.01)) { return num.toExponential(3); } // Exponentiell form för mycket stora/små tal
+            // Försök med fast antal decimaler, men begränsa till totalt antal siffror
+            let fixed = num.toFixed(3); // Börja med 3 decimaler
+            if (fixed.replace('.', '').replace('-', '').length > 7) {
+                fixed = num.toPrecision(4); // Om det blir för långt, använd precision
+            } else {
+                 // Ta bort onödiga nollor i slutet av decimaldelen
+                 fixed = parseFloat(fixed).toString();
+            }
+            return fixed;
+         }
+
+
+        // Funktion för graf
+        function displayDistanceTimeChart(accelerationValue) {
+            if (isNaN(accelerationValue) || accelerationValue === 0 || chartCanvas === null) { // Visa inte graf för noll acceleration
+                if (motionChart) { motionChart.destroy(); motionChart = null; }
+                if(chartSection) chartSection.style.display = 'none'; return;
+            }
+            if (motionChart) { motionChart.destroy(); }
+            const timeLabels = []; const distanceData = []; const duration = 60; // Graf över 60 sekunder
+            const steps = 60; // Antal punkter i grafen
+            for (let i = 0; i <= steps; i++) {
+                const t = (i / steps) * duration;
+                timeLabels.push(t.toFixed(1)); // Tid med en decimal
+                const distance = 0.5 * accelerationValue * t * t;
+                distanceData.push(distance);
+            }
+            const ctx = chartCanvas.getContext('2d');
+            if (!ctx) return; // Avbryt om context inte kunde skapas
+            motionChart = new Chart(ctx, {
+                type: 'line', data: { labels: timeLabels, datasets: [{ label: `Sträcka från start (m)`, data: distanceData, borderColor: 'rgb(40, 167, 69)', backgroundColor: 'rgba(40, 167, 69, 0.1)', tension: 0.1, fill: true, pointRadius: 0, borderWidth: 2 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: { title: { display: true, text: 'Tid (s)' }, ticks: { maxTicksLimit: 7 } }, // Begränsa antalet x-ticks
+                        y: { title: { display: true, text: 'Sträcka (m)' } }
+                    },
+                    plugins: {
+                         tooltip: {
+                             enabled: true,
+                             mode: 'index',
+                             intersect: false,
+                             callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed.y !== null) {
+                                        label += formatNumber(context.parsed.y) + ' m'; // Formattera tooltip-värde
+                                    }
+                                    return label;
+                                },
+                                title: function(tooltipItems) {
+                                    return 'Tid: ' + tooltipItems[0].label + ' s';
+                                }
+                            }
+                         },
+                         legend: { display: true, position: 'top' }
+                    },
+                    interaction: { // Förbättra interaktion för tooltip
+                        mode: 'index',
+                        intersect: false,
+                    },
+                 }
+            });
+            if(chartSection) chartSection.style.display = 'block';
+        }
+
+        // Funktion för lista
+        function displayDistanceList(accelerationValue) {
+             // Extra kontroller: Finns elementen och är acceleration ett tal?
+            if (isNaN(accelerationValue) || accelerationValue === 0 || distanceListSection === null || distanceListData === null) { // Visa inte lista för noll acceleration
+                if(distanceListSection) distanceListSection.style.display = 'none';
+                if(distanceListData) distanceListData.innerHTML = '';
+                return;
+            }
+
+            distanceListData.innerHTML = ''; // Rensa
+            const timeInterval = 5; // Intervall i sekunder
+            const duration = 60; // Total tid att visa
+            const maxItems = 13; // Visa för t=0, 5, 10 ... 60 (13 punkter)
+
+            for (let t = 0; t <= duration; t += timeInterval) {
+                const distance = 0.5 * accelerationValue * t * t;
+                const formattedDistance = formatNumber(distance);
+                const listItem = document.createElement('li');
+                // Kontrollera om listItem skapades korrekt
+                if(listItem){
+                    listItem.innerHTML = `Tid: <span class="value">${t} s</span> - Sträcka: <span class="value">${formattedDistance} m</span>`;
+                    distanceListData.appendChild(listItem);
+                } else {
+                    console.error("Kunde inte skapa listelement (li)"); // Felsökningsmeddelande
+                }
+            }
+            distanceListSection.style.display = 'block';
+        }
+
+
+        // Beräkningslogik
+        calculateBtn.addEventListener('click', () => {
+            // Nollställningar
+            if(resultArea) resultArea.style.display = 'none';
+            if(errorArea) errorArea.style.display = 'none';
+            if(chartSection) chartSection.style.display = 'none';
+            if(distanceListSection) distanceListSection.style.display = 'none';
+            if (motionChart) { motionChart.destroy(); motionChart = null; }
+            if(distanceListData) distanceListData.innerHTML = '';
+            if(calculatedValueP) calculatedValueP.textContent = '';
+            if(errorMessageP) errorMessageP.textContent = '';
+
+            // Läs in värden (med kontroller)
+            const F_str = forceInput ? forceInput.value.trim() : '';
+            const m_str = massInput ? massInput.value.trim() : '';
+            const a_str = accelerationInput ? accelerationInput.value.trim() : '';
+
+            const F_val = F_str === '' ? NaN : parseFloat(F_str);
+            const m_val = m_str === '' ? NaN : parseFloat(m_str);
+            const a_val = a_str === '' ? NaN : parseFloat(a_str);
+
+            let inputsProvided = 0;
+            if (!isNaN(F_val)) inputsProvided++;
+            if (!isNaN(m_val)) inputsProvided++;
+            if (!isNaN(a_val)) inputsProvided++;
+
+            let errorMsg = '';
+            let finalCalculatedA = NaN;
+            let calculatedResultText = ''; // För att bygga resultattexten
+
+            // Validering
+            if (inputsProvided !== 2) { errorMsg = "Ange exakt två av värdena (Kraft, Massa, Acceleration)."; }
+            else if (!isNaN(m_val) && m_val <= 0) { errorMsg = "Massan måste vara ett positivt tal (> 0)."; }
+            // Lägg till check om något värde inte är ett giltigt tal trots att det inte är tomt
+            else if ((F_str !== '' && isNaN(F_val)) || (m_str !== '' && isNaN(m_val)) || (a_str !== '' && isNaN(a_val))) {
+                 errorMsg = "Kontrollera att de angivna värdena är giltiga tal.";
+            }
+
+
+            if (errorMsg) {
+                if(errorMessageP) errorMessageP.textContent = errorMsg;
+                if(errorArea) errorArea.style.display = 'block';
+                return;
+            }
+
+            // Beräkning
+            try {
+                if (isNaN(F_val)) { // Beräkna Kraft
+                     const calculatedF = m_val * a_val;
+                     if (forceInput) forceInput.value = formatNumber(calculatedF);
+                     calculatedResultText = `Beräknad Kraft (F): <span class="value">${formatNumber(calculatedF)} N</span> (${formatNumber(m_val)} kg × ${formatNumber(a_val)} m/s²)`;
+                     finalCalculatedA = a_val; // Accelerationen är känd
+                } else if (isNaN(m_val)) { // Beräkna Massa
+                    if (a_val === 0) {
+                         if (F_val === 0) { errorMsg = "Kan ej beräkna massa: Både kraft och acceleration är noll (0/0)."; }
+                         else { errorMsg = "Kan ej beräkna massa: Accelerationen är noll men kraften är inte det."; }
+                         throw new Error(errorMsg);
+                     }
+                     const calculatedM = F_val / a_val;
+                     // Om kraft och acceleration har olika tecken blir massan negativ, vilket är ofysikaliskt
+                     if (calculatedM <= 0) { throw new Error(`Ogiltigt resultat: Beräknad massa (${formatNumber(calculatedM)} kg) är inte positiv. Kraft och acceleration måste ha samma tecken (eller båda vara noll).`); }
+                     if (massInput) massInput.value = formatNumber(calculatedM);
+                     calculatedResultText = `Beräknad Massa (m): <span class="value">${formatNumber(calculatedM)} kg</span> (${formatNumber(F_val)} N / ${formatNumber(a_val)} m/s²)`;
+                     finalCalculatedA = a_val; // Accelerationen är känd
+                } else if (isNaN(a_val)) { // Beräkna Acceleration
+                    // Massa validerades > 0 tidigare
+                    if (m_val === 0) { // Skulle inte hända pga validering, men för säkerhets skull
+                         throw new Error("Kan ej beräkna acceleration: Massan är noll.");
+                    }
+                    const calculatedA = F_val / m_val;
+                    if(accelerationInput) accelerationInput.value = formatNumber(calculatedA);
+                    calculatedResultText = `Beräknad Acceleration (a): <span class="value">${formatNumber(calculatedA)} m/s²</span> (${formatNumber(F_val)} N / ${formatNumber(m_val)} kg)`;
+                    finalCalculatedA = calculatedA; // Accelerationen har precis beräknats
+                }
+
+                // Visa huvudresultat
+                if(calculatedValueP) calculatedValueP.innerHTML = calculatedResultText;
+                if(resultArea) resultArea.style.display = 'block';
+
+                // Visa lista och graf endast om accelerationen inte är noll
+                if (finalCalculatedA !== 0) {
+                    displayDistanceList(finalCalculatedA);
+                    displayDistanceTimeChart(finalCalculatedA);
+                } else {
+                    // Informera om att graf/lista inte visas vid noll acceleration
+                    if(resultArea) { // Lägg till info i resultatsektionen
+                        const noMotionInfo = document.createElement('p');
+                        noMotionInfo.style.fontSize = '0.9em';
+                        noMotionInfo.style.marginTop = '10px';
+                        noMotionInfo.textContent = 'Eftersom accelerationen är 0 m/s², sker ingen förflyttning från vila. Graf och sträcklista visas inte.';
+                        resultArea.appendChild(noMotionInfo);
+                    }
+                }
+
+
+            } catch (error) {
+                // Felhantering
+                if(errorMessageP) errorMessageP.textContent = error.message;
+                if(errorArea) errorArea.style.display = 'block';
+                // Se till att allt annat döljs
+                 if(resultArea) resultArea.style.display = 'none';
+                 if (motionChart) { motionChart.destroy(); motionChart = null; }
+                 if(chartSection) chartSection.style.display = 'none';
+                 if(distanceListSection) distanceListSection.style.display = 'none';
+                 if(distanceListData) distanceListData.innerHTML = '';
+            }
+        });
+
+        // Rensa-knapp
+        clearBtn.addEventListener('click', () => {
+            if(forceInput) forceInput.value = '';
+            if(massInput) massInput.value = '';
+            if(accelerationInput) accelerationInput.value = '';
+            if(resultArea) resultArea.style.display = 'none';
+            if(errorArea) errorArea.style.display = 'none';
+            if(calculatedValueP) calculatedValueP.textContent = '';
+            if(errorMessageP) errorMessageP.textContent = '';
+            if (motionChart) { motionChart.destroy(); motionChart = null; }
+            if(chartSection) chartSection.style.display = 'none';
+            if(distanceListSection) distanceListSection.style.display = 'none';
+            if(distanceListData) distanceListData.innerHTML = '';
+        });
+
+    </script>
+
+</body>
+</html>

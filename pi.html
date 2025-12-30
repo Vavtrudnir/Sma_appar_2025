@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <title>Jämför Pi-beräkningsmetoder</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+        Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f0f2f5;
+      color: #333;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 900px;
+      margin: 20px auto;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      color: #1a253c;
+      text-align: center;
+      margin-bottom: 25px;
+      border-bottom: 2px solid #e0e0e0;
+      padding-bottom: 10px;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 30px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 6px;
+      flex-wrap: wrap; /* För mindre skärmar */
+      gap: 10px;
+    }
+    label {
+      margin-right: 10px;
+      font-weight: bold;
+    }
+    input[type='number'] {
+      width: 100px;
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 1rem;
+      margin-right: 15px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      color: #fff;
+      background-color: #007bff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      white-space: nowrap; /* Förhindra radbrytning i knappar */
+    }
+    button:hover:not(:disabled) {
+      background-color: #0056b3;
+    }
+    button:disabled {
+      background-color: #bdc3c7;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 20px;
+    }
+    .algorithm-card {
+      background-color: #ffffff;
+      border: 1px solid #e7e7e7;
+      border-radius: 6px;
+      padding: 15px 20px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+      display: flex;
+      flex-direction: column;
+    }
+    .algorithm-card h2 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 1.25rem;
+      color: #343a40;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 5px;
+    }
+    .description {
+      font-size: 0.9rem;
+      color: #555;
+      margin-bottom: 15px;
+      flex-grow: 1; /* Tar upp ledigt utrymme */
+    }
+    .result-output {
+       margin-top: auto; /* Skjuter ner resultat/tid/knapp till botten */
+    }
+    .result-output pre {
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.85rem;
+      color: #333;
+      min-height: 40px;
+      border: 1px solid #eee;
+      margin-bottom: 10px; /* Lite utrymme till knappen */
+    }
+     .timing {
+      font-size: 0.85rem;
+      color: #777;
+      margin-top: 0; /* Justerad */
+      margin-bottom: 10px; /* Utrymme till knappen */
+      font-style: italic;
+    }
+    .calc-single-btn {
+        padding: 6px 12px;
+        font-size: 0.9rem;
+        background-color: #6c757d; /* Annan färg för enskilda */
+        display: block; /* Gör att den tar full bredd i sin container */
+        width: 100%;
+        margin-top: 10px;
+    }
+    .calc-single-btn:hover:not(:disabled) {
+        background-color: #5a6268;
+    }
+
+    .status { font-weight: bold; }
+    .status.calculating { color: #ffc107; }
+    .status.done { color: #28a745; }
+    .status.error { color: #dc3545; }
+    .status.info { color: #17a2b8; }
+
+    /* Förhindra att input-pilarna syns */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none; margin: 0;
+    }
+    input[type=number] { -moz-appearance: textfield; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Jämför Pi-beräkningsmetoder</h1>
+
+    <div class="controls">
+      <label for="decimaler">Önskat antal decimaler:</label>
+      <input type="number" id="decimaler" value="100" min="1" max="10000">
+      <button id="beraknaAllaBtn">Beräkna Alla</button>
+    </div>
+
+    <div id="results-grid" class="results-grid">
+      <!-- Algoritm-kort läggs till här av JavaScript -->
+    </div>
+  </div>
+
+  <script>
+    const MAX_DECIMALS_REASONABLE = 10000;
+    const FIXED_ITERATIONS_SLOW = 1000000;
+    const FIXED_ITERATIONS_MONTE_CARLO = 5000000;
+
+    const algorithms = [
+      { id: 'chudnovsky', name: 'Chudnovsky-algoritmen', description: 'En av de snabbaste kända algoritmerna (ca 14 decimaler/term). Kräver Decimal.js. Standard för rekordberäkningar.', calculate: calculateChudnovsky, usesDecimalJS: true, precisionApplicable: true },
+      { id: 'machin', name: 'Machin-liknande formel', description: 'Använder arctan-serier (π/4 = 4*arctan(1/5) - arctan(1/239)). Snabbare än enkla serier. Kräver Decimal.js.', calculate: calculateMachin, usesDecimalJS: true, precisionApplicable: true },
+      { id: 'nilakantha', name: 'Nilakantha-serien', description: `π = 3 + 4/(2*3*4) - 4/(4*5*6) + ... Konvergerar snabbare än Leibniz men långsamt. Beräknar ${FIXED_ITERATIONS_SLOW.toLocaleString('sv-SE')} termer.`, calculate: calculateNilakantha, usesDecimalJS: true, precisionApplicable: false },
+      { id: 'leibniz', name: 'Leibniz formel', description: `π/4 = 1 - 1/3 + 1/5 - ... Extremt långsam konvergens. Beräknar ${FIXED_ITERATIONS_SLOW.toLocaleString('sv-SE')} termer för demonstration.`, calculate: calculateLeibniz, usesDecimalJS: true, precisionApplicable: false },
+      { id: 'montecarlo', name: 'Monte Carlo-metoden', description: `Simulerar "pilkastning" på en cirkel i en kvadrat. Ger endast en approximation. Beräknar med ${FIXED_ITERATIONS_MONTE_CARLO.toLocaleString('sv-SE')} punkter.`, calculate: calculateMonteCarlo, usesDecimalJS: false, precisionApplicable: false }
+    ];
+
+    const resultsGrid = document.getElementById('results-grid');
+    const calculateAllButton = document.getElementById('beraknaAllaBtn');
+    const decimalsInput = document.getElementById('decimaler');
+
+    // Skapa kort för varje algoritm
+    function initializeUI() {
+        resultsGrid.innerHTML = '';
+        algorithms.forEach(alg => {
+            const card = document.createElement('div');
+            card.className = 'algorithm-card';
+            card.id = `card-${alg.id}`;
+            card.innerHTML = `
+                <h2>${alg.name}</h2>
+                <p class="description">${alg.description}</p>
+                <div class="result-output">
+                  <pre id="result-${alg.id}">Väntar på beräkning...</pre>
+                  <p class="timing" id="timing-${alg.id}">Tid: -</p>
+                  <button class="calc-single-btn" data-alg-id="${alg.id}">Beräkna</button>
+                </div>
+            `;
+            resultsGrid.appendChild(card);
+        });
+
+        // Lägg till event listeners för individuella knappar
+        document.querySelectorAll('.calc-single-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const algId = btn.getAttribute('data-alg-id');
+                triggerSingleCalculation(algId);
+            });
+        });
+    }
+
+    // --- Beräkningsfunktionerna (calculateChudnovsky, etc.) är samma som tidigare ---
+    // (Inkluderar dem inte här igen för korthetens skull, men de ska finnas här)
+
+    // Hjälpfunktion för att vänta lite
+    function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+    // Chudnovsky (från tidigare exempel, något modifierad)
+    async function calculateChudnovsky(decimals) {
+      const workingPrecision = decimals + 15;
+      const iterations = Math.ceil(workingPrecision / 14) + 1;
+      Decimal.set({ precision: workingPrecision });
+
+      const C = new Decimal(426880).times(Decimal.sqrt(new Decimal(10005)));
+      let M = new Decimal(1);
+      let L = new Decimal(13591409);
+      let X = new Decimal(1);
+      let S = L; // k = 0 term
+
+      // Pre-compute -640320^3
+      const neg_C3 = new Decimal(-262537412640768000);
+
+      for (let k = 1; k <= iterations; k++) {
+         let K = new Decimal(6 * k); // K = 6k
+         M = M.times(K.pow(3).minus(K.times(16))).dividedBy(new Decimal(k).pow(3));
+         L = L.plus(545140134);
+         X = X.times(neg_C3);
+         S = S.plus(M.times(L).dividedBy(X));
+         // Liten paus för att inte helt frysa UI vid många iterationer
+         if (k % 100 === 0) await sleep(0);
+      }
+
+      const pi = C.dividedBy(S);
+      return pi.toFixed(decimals);
+    }
+
+    // Machin-liknande
+    async function calculateMachin(decimals) {
+        const workingPrecision = decimals + 10;
+        Decimal.set({ precision: workingPrecision });
+
+        const D1 = new Decimal(1);
+        const D5 = new Decimal(5);
+        const D239 = new Decimal(239);
+        const D4 = new Decimal(4);
+        const D16 = new Decimal(16);
+
+        // Beräkna arctan(x) = x - x^3/3 + x^5/5 - ...
+        async function arctan(x_dec, prec) {
+            Decimal.set({ precision: prec + 5 }); // Extra precision
+            let x = x_dec;
+            let x2 = x.pow(2);
+            let term = x;
+            let sum = x;
+            let n = 1;
+            const threshold = D1.dividedBy(new Decimal(10).pow(prec + 2));
+
+            while (term.abs().gt(threshold)) {
+                n += 2;
+                term = term.times(x2);
+                let currentTerm = term.dividedBy(new Decimal(n));
+                sum = (n % 4 === 1) ? sum.plus(currentTerm) : sum.minus(currentTerm); // Vartannat tecken
+
+                // Liten paus för att inte frysa UI vid hög precision
+                if (n % 50 === 1) await sleep(0);
+             }
+             Decimal.set({ precision: workingPrecision }); // Återställ
+             return sum;
+        }
+
+        const arctan1_5 = await arctan(D1.dividedBy(D5), workingPrecision);
+        await sleep(0); // Ge tid för eventuell UI-uppdatering
+        const arctan1_239 = await arctan(D1.dividedBy(D239), workingPrecision);
+
+        const pi = D16.times(arctan1_5).minus(D4.times(arctan1_239));
+        return pi.toFixed(decimals);
+    }
+
+    // Nilakantha
+    async function calculateNilakantha(decimals) {
+        const iterations = FIXED_ITERATIONS_SLOW;
+        const workingPrecision = 50;
+        Decimal.set({ precision: workingPrecision });
+        let pi = new Decimal(3);
+        let sign = 1;
+        const D4 = new Decimal(4);
+        for (let k = 1; k <= iterations; k++) {
+            let denom_start = new Decimal(2 * k);
+            let denom = denom_start.times(denom_start.plus(1)).times(denom_start.plus(2));
+            let term = D4.dividedBy(denom);
+            pi = (sign > 0) ? pi.plus(term) : pi.minus(term);
+            sign *= -1;
+            if (k % 10000 === 0) await sleep(0); // Paus för UI
+        }
+        const displayDecimals = Math.min(decimals, 20);
+        return pi.toFixed(displayDecimals);
+    }
+
+    // Leibniz
+    async function calculateLeibniz(decimals) {
+        const iterations = FIXED_ITERATIONS_SLOW;
+        const workingPrecision = 50;
+        Decimal.set({ precision: workingPrecision });
+        let sum = new Decimal(0);
+        const D1 = new Decimal(1);
+        for (let k = 0; k < iterations; k++) {
+            let term = D1.dividedBy(2 * k + 1);
+            sum = (k % 2 === 0) ? sum.plus(term) : sum.minus(term);
+            if (k % 10000 === 0) await sleep(0); // Paus för UI
+        }
+        const pi = sum.times(4);
+        const displayDecimals = Math.min(decimals, 10);
+        return pi.toFixed(displayDecimals);
+    }
+
+    // Monte Carlo
+    async function calculateMonteCarlo(decimals) {
+        const num_points = FIXED_ITERATIONS_MONTE_CARLO;
+        let inside_circle = 0;
+        const reportInterval = Math.floor(num_points / 100); // Pausa 100 ggr
+        for (let i = 0; i < num_points; i++) {
+            let x = Math.random();
+            let y = Math.random();
+            if (x * x + y * y <= 1) { inside_circle++; }
+            if (i > 0 && i % reportInterval === 0) await sleep(0); // Paus för UI
+        }
+        const pi_approx = 4 * (inside_circle / num_points);
+        const displayDecimals = Math.min(decimals, 6);
+        return pi_approx.toFixed(displayDecimals);
+    }
+
+
+    // --- Funktioner för att trigga beräkningar ---
+
+    // Funktion för att köra EN beräkning
+    async function triggerSingleCalculation(algorithmId, inheritedDecimals = null) {
+        const alg = algorithms.find(a => a.id === algorithmId);
+        if (!alg) return;
+
+        const requestedDecimals = inheritedDecimals ?? parseInt(decimalsInput.value);
+        if (isNaN(requestedDecimals) || requestedDecimals < 1 || requestedDecimals > MAX_DECIMALS_REASONABLE) {
+             // Visa felet på kortet istället för alert om det anropas från "Alla"
+            if (inheritedDecimals === null) {
+                 alert(`Ange ett giltigt antal decimaler mellan 1 och ${MAX_DECIMALS_REASONABLE}.`);
+            } else {
+                 const resElem = document.getElementById(`result-${alg.id}`);
+                 resElem.textContent = `Ogiltigt antal decimaler (${decimalsInput.value})`;
+                 resElem.className = 'status error';
+                 document.getElementById(`timing-${alg.id}`).textContent = `Tid: -`;
+            }
+            return;
+        }
+
+        const resultElement = document.getElementById(`result-${alg.id}`);
+        const timingElement = document.getElementById(`timing-${alg.id}`);
+        const singleButton = document.querySelector(`.calc-single-btn[data-alg-id="${alg.id}"]`);
+
+        // Inaktivera knappar
+        if (singleButton) singleButton.disabled = true;
+        calculateAllButton.disabled = true; // Inaktivera alltid huvudknappen också
+
+        resultElement.textContent = 'Beräknar...';
+        resultElement.className = 'status calculating';
+        timingElement.textContent = 'Tid: -';
+        await sleep(10); // Låt UI uppdateras
+
+        const startTime = performance.now();
+        let result = 'Fel';
+        let statusClass = 'status error';
+
+        try {
+            const decimalsToUse = alg.precisionApplicable ? requestedDecimals : Math.max(requestedDecimals, 15); // Ge de långsamma lite precision att jobba med
+
+            result = await alg.calculate(decimalsToUse);
+
+            if (result instanceof Decimal) {
+               result = result.toFixed(alg.precisionApplicable ? requestedDecimals : 10);
+            }
+
+            if (alg.precisionApplicable) {
+                resultElement.textContent = `Pi ≈ ${result}`;
+            } else if (alg.id === 'montecarlo') {
+                resultElement.textContent = `Pi ≈ ${result} (Approximation med ${FIXED_ITERATIONS_MONTE_CARLO.toLocaleString('sv-SE')} punkter)`;
+            } else {
+                 resultElement.textContent = `Pi ≈ ${result} (Begränsad av ${FIXED_ITERATIONS_SLOW.toLocaleString('sv-SE')} termer)`;
+            }
+            statusClass = 'status done';
+
+        } catch (error) {
+            console.error(`Fel i ${alg.name}:`, error);
+            resultElement.textContent = `Ett fel uppstod.`;
+            statusClass = 'status error';
+        } finally {
+            const endTime = performance.now();
+            const duration = ((endTime - startTime) / 1000).toFixed(3);
+            timingElement.textContent = `Tid: ${duration} s`;
+            resultElement.className = statusClass;
+
+            // Återaktivera knappar (men bara om "Beräkna Alla" inte körs)
+            // Kontrollerar om calculateAllButton fortfarande är inaktiverad av sig själv
+            // Detta är lite knepigt, vi låter runAllCalculations hantera den globala återaktiveringen.
+             if (singleButton && calculateAllButton.textContent !== 'Beräknar Alla...') {
+                 singleButton.disabled = false;
+                 calculateAllButton.disabled = false;
+            } else if (singleButton) {
+                 // Om "Alla" körs, återaktivera bara den här knappen *temporärt* så att den
+                 // inte ser inaktiverad ut när nästa börjar. runAllCalculations återaktiverar sen.
+                 // singleButton.disabled = false; // Eller låt den vara inaktiverad tills "Alla" är klar
+            }
+        }
+    }
+
+    // Funktion för att köra ALLA beräkningar sekventiellt
+    async function runAllCalculations() {
+      const requestedDecimals = parseInt(decimalsInput.value);
+
+      if (isNaN(requestedDecimals) || requestedDecimals < 1 || requestedDecimals > MAX_DECIMALS_REASONABLE) {
+        alert(`Ange ett giltigt antal decimaler mellan 1 och ${MAX_DECIMALS_REASONABLE}.`);
+        return;
+      }
+
+      // Inaktivera alla knappar
+      calculateAllButton.disabled = true;
+      calculateAllButton.textContent = 'Beräknar Alla...';
+      document.querySelectorAll('.calc-single-btn').forEach(btn => btn.disabled = true);
+
+      // Återställ alla kort visuellt innan start
+      algorithms.forEach(alg => {
+          document.getElementById(`result-${alg.id}`).textContent = 'Väntar...';
+          document.getElementById(`result-${alg.id}`).className = '';
+          document.getElementById(`timing-${alg.id}`).textContent = 'Tid: -';
+      });
+       await sleep(50); // Låt UI uppdateras
+
+
+      for (const alg of algorithms) {
+        // Anropa den enskilda beräkningsfunktionen och vänta på den
+        await triggerSingleCalculation(alg.id, requestedDecimals);
+        // Liten paus mellan varje för att UI ska hinna med lite
+        await sleep(50);
+      }
+
+      // Återaktivera alla knappar när allt är klart
+      calculateAllButton.disabled = false;
+      calculateAllButton.textContent = 'Beräkna Alla';
+      document.querySelectorAll('.calc-single-btn').forEach(btn => btn.disabled = false);
+    }
+
+    // Initiera UI och koppla huvudknapp
+    initializeUI();
+    calculateAllButton.addEventListener('click', runAllCalculations);
+
+  </script>
+</body>
+</html>

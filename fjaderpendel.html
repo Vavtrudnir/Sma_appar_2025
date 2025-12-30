@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fjäderpendel Simulering (Allt-i-ett)</title>
+    <!-- Inkludera Plotly.js -->
+    <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+
+    <style>
+        /* ----- CSS Start ----- */
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+
+        h1, h2, h3 {
+            color: #333;
+            margin-bottom: 0.5em;
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            gap: 20px;
+        }
+
+        .controls {
+            flex: 1; /* Takes up 1 part of the space */
+            min-width: 300px; /* Minimum width before wrapping */
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            align-self: flex-start; /* Align to top */
+        }
+
+        .results {
+            flex: 3; /* Takes up 3 parts of the space */
+            min-width: 500px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .input-group input[type="number"] {
+            width: calc(100% - 12px); /* Adjust width considering padding */
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px 15px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.2s ease;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .run-button {
+            background-color: #28a745; /* Green */
+            color: white;
+            margin-bottom: 20px; /* Space before next section */
+        }
+        .run-button:hover:not(:disabled) {
+            background-color: #218838;
+        }
+
+        #download_graphs_button {
+            background-color: #17a2b8; /* Info Blue */
+            color: white;
+        }
+        #download_graphs_button:hover:not(:disabled) {
+            background-color: #138496;
+        }
+
+        #toggle_animation_button {
+            background-color: #007bff; /* Primary Blue */
+            color: white;
+        }
+        #toggle_animation_button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+
+
+        #output_log {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.9em;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        #output_log p {
+            margin: 0 0 5px 0;
+        }
+
+        .note {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        #plots_container .plotly { /* Ensure plots take width */
+           min-height: 350px; /* Give plots a default height */
+           margin-bottom: 15px;
+        }
+
+        #animation_canvas {
+            border: 1px solid #ccc;
+            display: block; /* Remove extra space below canvas */
+            margin: 0 auto 10px auto; /* Center and add bottom margin */
+            background-color: #f8f9fa;
+        }
+        #animation_info {
+            text-align: center;
+            font-size: 0.9em;
+            font-family: monospace;
+        }
+        #results_summary pre {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            white-space: pre-wrap; /* Wrap long lines */
+            word-wrap: break-word;
+        }
+        /* ----- CSS End ----- */
+    </style>
+</head>
+<body>
+    <h1>Fjäderpendel Simulering</h1>
+
+    <div class="container">
+        <div class="controls">
+            <h2>Indataparametrar</h2>
+            <div class="input-group">
+                <label for="l0">Vilolängd l₀ (m):</label>
+                <input type="number" id="l0" value="0.2" step="0.01">
+            </div>
+            <div class="input-group">
+                <label for="l_initial">Initial längd l(0) (m):</label>
+                <input type="number" id="l_initial" value="0.5" step="0.01">
+            </div>
+            <div class="input-group">
+                <label for="theta_initial_deg">Initial vinkel θ(0) (grader):</label>
+                <input type="number" id="theta_initial_deg" value="85.0" step="0.1">
+            </div>
+            <div class="input-group">
+                <label for="k">Fjäderkonstant k (N/m):</label>
+                <input type="number" id="k" value="90.0" step="1">
+            </div>
+            <div class="input-group">
+                <label for="m">Massa m (kg):</label>
+                <input type="number" id="m" value="2.0" step="0.1">
+            </div>
+            <div class="input-group">
+                <label for="g">Tyngdacceleration g (m/s²):</label>
+                <input type="number" id="g" value="9.81" step="0.01" disabled>
+            </div>
+            <div class="input-group">
+                <label for="t_end">Simuleringstid T (s):</label>
+                <input type="number" id="t_end" value="10.0" step="0.1">
+            </div>
+            <div class="input-group">
+                 <label for="dt">Tidssteg dt (s) [RK4]:</label>
+                 <input type="number" id="dt" value="0.005" step="0.001" title="Mindre värde ger högre noggrannhet men tar längre tid.">
+             </div>
+
+            <button id="run_button" class="run-button">Kör Simulering & Grafer</button>
+
+            <h2>Visualisering & Nedladdning</h2>
+            <button id="download_graphs_button" disabled>Ladda ner Grafer (PNG)</button>
+            <button id="toggle_animation_button" disabled>Visa/Dölj Animation</button>
+            <p class="note">(Animation visas live, MP4/GIF-generering ej implementerad i denna version)</p>
+
+            <div id="output_log">
+                <p>Ange parametrar och klicka på 'Kör Simulering'.</p>
+            </div>
+        </div>
+
+        <div class="results">
+            <h2>Resultat</h2>
+             <div id="animation_container" style="display: none;">
+                 <h3>Animation</h3>
+                 <canvas id="animation_canvas" width="400" height="400"></canvas>
+                 <p id="animation_info"></p>
+             </div>
+
+            <div id="plots_container">
+                <h3>Grafer</h3>
+                <div id="plot_length"></div>
+                <div id="plot_angle"></div>
+                <div id="plot_trajectory"></div>
+                <div id="plot_phase"></div>
+                <div id="plot_energy"></div>
+                <div id="plot_velocities"></div>
+            </div>
+             <div id="results_summary">
+                 <h3>Slutvärden</h3>
+                 <pre id="final_values_output"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ----- JavaScript Start -----
+
+        // --- DOM Element References ---
+        const input_l0 = document.getElementById('l0');
+        const input_l_initial = document.getElementById('l_initial');
+        const input_theta_initial_deg = document.getElementById('theta_initial_deg');
+        const input_k = document.getElementById('k');
+        const input_m = document.getElementById('m');
+        const input_g = document.getElementById('g'); // Disabled, but read its value
+        const input_t_end = document.getElementById('t_end');
+        const input_dt = document.getElementById('dt'); // Time step for RK4
+
+        const runButton = document.getElementById('run_button');
+        const downloadGraphsButton = document.getElementById('download_graphs_button');
+        const toggleAnimationButton = document.getElementById('toggle_animation_button');
+
+        const outputLog = document.getElementById('output_log');
+        const plotsContainer = document.getElementById('plots_container');
+        const animationContainer = document.getElementById('animation_container');
+        const animationCanvas = document.getElementById('animation_canvas');
+        const animationInfo = document.getElementById('animation_info');
+        const finalValuesOutput = document.getElementById('final_values_output');
+
+        const plotDivs = {
+            length: 'plot_length',
+            angle: 'plot_angle',
+            trajectory: 'plot_trajectory',
+            phase: 'plot_phase',
+            energy: 'plot_energy',
+            velocities: 'plot_velocities'
+        };
+
+        // --- Global Simulation State ---
+        let simulationResults = null;
+        let animationFrameId = null; // To store requestAnimationFrame ID
+        let isAnimationVisible = false;
+
+        // --- Logging Function ---
+        function logMessage(message) {
+            console.log(message); // Log to console as well
+            outputLog.innerHTML += `<p>${new Date().toLocaleTimeString()}: ${message}</p>`;
+            outputLog.scrollTop = outputLog.scrollHeight; // Scroll to bottom
+        }
+
+        // --- Differential Equations System ---
+        // y = [l, l_dot, theta, theta_dot]
+        function springPendulumSystem(y, params) {
+            const { m, k, l0, g } = params;
+            let l = y[0];
+            const l_dot = y[1];
+            const theta = y[2];
+            const theta_dot = y[3];
+
+            // Avoid division by zero or very small l
+            if (l <= 1e-6) {
+                l = 1e-6;
+            }
+
+            const l_ddot = (l * theta_dot**2) + (g * Math.cos(theta)) - (k/m) * (l - l0);
+            const theta_ddot = -(g * Math.sin(theta) + 2 * l_dot * theta_dot) / l;
+
+            return [l_dot, l_ddot, theta_dot, theta_ddot];
+        }
+
+        // --- Runge-Kutta 4th Order Step ---
+        function rk4Step(func, y, t, dt, params) {
+            const k1 = func(y, params).map(v => v * dt);
+            const k2 = func(y.map((yi, i) => yi + 0.5 * k1[i]), params).map(v => v * dt);
+            const k3 = func(y.map((yi, i) => yi + 0.5 * k2[i]), params).map(v => v * dt);
+            const k4 = func(y.map((yi, i) => yi + k3[i]), params).map(v => v * dt);
+
+            const y_next = y.map((yi, i) => yi + (k1[i] + 2*k2[i] + 2*k3[i] + k4[i]) / 6);
+            return y_next;
+        }
+
+        // --- Simulation Function ---
+        function runSimulation() {
+            logMessage("Läser indata...");
+            setButtonsDisabled(true); // Disable all buttons during run
+            clearPreviousResults();
+
+            // Get parameters from inputs
+            const params = {
+                l0: parseFloat(input_l0.value),
+                l_initial: parseFloat(input_l_initial.value),
+                theta_initial_deg: parseFloat(input_theta_initial_deg.value),
+                k: parseFloat(input_k.value),
+                m: parseFloat(input_m.value),
+                g: parseFloat(input_g.value),
+                t_end: parseFloat(input_t_end.value),
+                dt: parseFloat(input_dt.value) // RK4 time step
+            };
+
+            // Basic Input Validation
+            if (isNaN(params.l0) || isNaN(params.l_initial) || isNaN(params.theta_initial_deg) ||
+                isNaN(params.k) || isNaN(params.m) || isNaN(params.t_end) || isNaN(params.dt)) {
+                logMessage("Fel: Alla indata måste vara giltiga nummer.");
+                setButtonsDisabled(false); // Re-enable buttons
+                runButton.disabled = false; // Keep run button enabled
+                return;
+            }
+            if (params.m <= 0 || params.k <= 0 || params.l_initial <= 0 || params.t_end <= 0 || params.dt <= 0) {
+                logMessage("Fel: m, k, l_initial, t_end och dt måste vara positiva.");
+                 setButtonsDisabled(false);
+                 runButton.disabled = false;
+                return;
+            }
+             if (params.l0 < 0) {
+                logMessage("Fel: l0 får inte vara negativt.");
+                 setButtonsDisabled(false);
+                 runButton.disabled = false;
+                return;
+            }
+
+            logMessage(`Parametrar: l0=${params.l0}, l(0)=${params.l_initial}, θ(0)=${params.theta_initial_deg}°, k=${params.k}, m=${params.m}, T=${params.t_end}, dt=${params.dt}`);
+
+            // Initial conditions
+            const theta_initial = params.theta_initial_deg * Math.PI / 180.0;
+            const l_dot_initial = 0.0;
+            const theta_dot_initial = 0.0;
+            let y = [params.l_initial, l_dot_initial, theta_initial, theta_dot_initial]; // State vector
+
+            // Time array and result storage
+            const t_values = [];
+            const l_values = [];
+            const l_dot_values = [];
+            const theta_values = [];
+            const theta_dot_values = [];
+            const x_values = [];
+            const y_values = [];
+            const kinetic_energy = [];
+            const potential_energy = [];
+            const total_energy = [];
+
+            let t = 0;
+            let steps = 0;
+            const maxSteps = Math.ceil(params.t_end / params.dt); // Safety limit
+            const reportInterval = Math.max(100, Math.floor(maxSteps / 20)); // Report progress periodically
+
+            logMessage(`Startar RK4-simulering (upp till ${maxSteps} steg)...`);
+
+            // Simulation loop using RK4
+            try {
+                while (t < params.t_end && steps < maxSteps + 1) {
+                    // Store current state
+                    t_values.push(t);
+                    l_values.push(y[0]);
+                    l_dot_values.push(y[1]);
+                    theta_values.push(y[2]);
+                    theta_dot_values.push(y[3]);
+
+                    // Calculate Cartesian coordinates
+                    const current_x = y[0] * Math.sin(y[2]);
+                    const current_y = -y[0] * Math.cos(y[2]); // Negative for y-axis down
+                    x_values.push(current_x);
+                    y_values.push(current_y);
+
+                    // Calculate energy
+                    const ke = 0.5 * params.m * (y[1]**2 + (y[0] * y[3])**2);
+                    const pe = params.m * params.g * current_y + 0.5 * params.k * (y[0] - params.l0)**2;
+                    kinetic_energy.push(ke);
+                    potential_energy.push(pe);
+                    total_energy.push(ke + pe);
+
+                    // Perform RK4 step
+                    y = rk4Step(springPendulumSystem, y, t, params.dt, params);
+                    t += params.dt;
+                    steps++;
+
+                    // Check for instability (optional but good)
+                    if (!y.every(isFinite) || Math.abs(y[0]) > params.l_initial * 100) { // Check for NaN/Infinity or excessive length
+                         logMessage(`Varning: Instabilitet detekterad vid t=${t.toFixed(3)}s. Avbryter.`);
+                         break;
+                    }
+
+                    // Progress report
+                    if (steps % reportInterval === 0) {
+                        logMessage(`Simulerat ${steps}/${maxSteps} steg (t = ${t.toFixed(2)}s)...`);
+                    }
+                }
+                logMessage(`Simulering klar efter ${steps} steg.`);
+
+                // Store results globally
+                simulationResults = {
+                    params,
+                    t: t_values,
+                    l: l_values,
+                    theta: theta_values,
+                    l_dot: l_dot_values,
+                    theta_dot: theta_dot_values,
+                    x: x_values,
+                    y: y_values,
+                    ke: kinetic_energy,
+                    pe: potential_energy,
+                    total_e: total_energy,
+                    l0_line_y: Array(t_values.length).fill(params.l0) // For plotting l0
+                };
+
+                // Plot results
+                plotResults(simulationResults);
+
+                // Display final values
+                displayFinalValues(simulationResults);
+
+                // Enable relevant buttons
+                setButtonsDisabled(false, true); // Enable post-run buttons
+
+
+            } catch (error) {
+                logMessage(`Ett fel inträffade under simuleringen: ${error}`);
+                console.error(error);
+                setButtonsDisabled(false); // Re-enable run button only
+                runButton.disabled = false;
+            }
+        }
+
+        // --- Plotting Function ---
+        function plotResults(results) {
+            if (!results) return;
+            logMessage("Genererar grafer...");
+
+            const { t, l, theta, x, y, ke, pe, total_e, l_dot, theta_dot, params, l0_line_y } = results;
+
+            // Convert angles to degrees for plotting
+            const angle_degrees = theta.map(angle => (angle * 180 / Math.PI + 180) % 360 - 180);
+
+            // Common layout settings
+            const layoutBase = {
+                margin: { l: 50, r: 30, t: 50, b: 50 }, // Adjust margins
+                xaxis: { title: 'Tid (s)' },
+                showlegend: true,
+                height: 350, // Default height for plots
+                 font: { size: 10 } // Smaller font for compactness
+            };
+
+            // 1. Length vs Time
+            Plotly.newPlot(plotDivs.length, [
+                { x: t, y: l, mode: 'lines', name: 'Längd (l)', line: { color: 'blue'} },
+                { x: t, y: l0_line_y, mode: 'lines', name: `l₀=${params.l0}m`, line: { color: 'red', dash: 'dash' } }
+            ], { ...layoutBase, title: 'Längd vs Tid', yaxis: { title: 'Längd (m)' } });
+
+            // 2. Angle vs Time
+            Plotly.newPlot(plotDivs.angle, [
+                { x: t, y: angle_degrees, mode: 'lines', name: 'Vinkel (θ)', line: { color: 'green'} }
+            ], { ...layoutBase, title: 'Vinkel vs Tid', yaxis: { title: 'Vinkel (°)' } });
+
+            // 3. Trajectory (xy-plane)
+            Plotly.newPlot(plotDivs.trajectory, [
+                { x: x, y: y, mode: 'lines', name: 'Bana', line: { color: 'red', width: 1 } },
+                { x: [x[0]], y: [y[0]], mode: 'markers', name: 'Start', marker: { color: 'green', size: 8 } },
+                { x: [x[x.length-1]], y: [y[y.length-1]], mode: 'markers', name: 'Slut', marker: { color: 'purple', size: 8 } },
+                { x: [0], y: [0], mode: 'markers', name: 'Fästpunkt', marker: { color: 'black', symbol: 'diamond', size: 10 } }
+            ], {
+                ...layoutBase,
+                title: 'Bana (xy-plan)',
+                xaxis: { title: 'x (m)', scaleanchor: "y", scaleratio: 1 }, // Equal aspect ratio
+                yaxis: { title: 'y (m)' }
+            });
+
+
+            // 4. Phase: Length vs Angle
+            Plotly.newPlot(plotDivs.phase, [
+                { x: angle_degrees, y: l, mode: 'markers', name: 'Faspunkter', marker: { color: 'purple', size: 2 } }
+            ], { ...layoutBase, title: 'Fas: Längd vs Vinkel', xaxis: { title: 'Vinkel (°)' }, yaxis: { title: 'Längd (m)' } });
+
+            // 5. Energy vs Time
+            const energy_std_dev = standardDeviation(total_e);
+            const energy_mean = mean(total_e);
+            const energy_variation = (Math.abs(energy_mean) > 1e-9) ? energy_std_dev / Math.abs(energy_mean) : energy_std_dev;
+
+            Plotly.newPlot(plotDivs.energy, [
+                { x: t, y: ke, mode: 'lines', name: 'Kinetisk (T)', line: { color: 'red'} },
+                { x: t, y: pe, mode: 'lines', name: 'Potentiell (V)', line: { color: 'green'} },
+                { x: t, y: total_e, mode: 'lines', name: 'Total (E)', line: { color: 'blue', width: 2} }
+            ], {
+                ...layoutBase,
+                title: 'Energi vs Tid',
+                yaxis: { title: 'Energi (J)' },
+                annotations: [{ // Display energy variation
+                     x: 0.5, y: -0.15, // Position relative to plot
+                     xref: 'paper', yref: 'paper',
+                     text: `Rel. E std/medel: ${energy_variation.toExponential(2)}`,
+                     showarrow: false, font: { size: 10 }
+                }]
+            });
+
+            // 6. Velocities vs Time
+            const theta_dot_deg = theta_dot.map(td => td * 180 / Math.PI); // dθ/dt in deg/s
+            Plotly.newPlot(plotDivs.velocities, [
+                { x: t, y: l_dot, mode: 'lines', name: 'dl/dt (m/s)', line: { color: 'cyan'} },
+                { x: t, y: theta_dot_deg, mode: 'lines', name: 'dθ/dt (°/s)', line: { color: 'orange'} } // Plot in deg/s for better scale
+            ], { ...layoutBase, title: 'Hastigheter vs Tid', yaxis: { title: 'Hastighet' } });
+
+            logMessage("Grafer klara.");
+        }
+
+        // --- Animation Functions ---
+        function startAnimation() {
+            if (!simulationResults) return;
+            logMessage("Startar animation...");
+            isAnimationVisible = true;
+            animationContainer.style.display = 'block';
+            toggleAnimationButton.textContent = 'Dölj Animation';
+
+            const { x, y, t, l, theta, params } = simulationResults;
+            const ctx = animationCanvas.getContext('2d');
+            const canvasWidth = animationCanvas.width;
+            const canvasHeight = animationCanvas.height;
+
+            // Determine scale factor to fit trajectory
+            const maxAbsX = Math.max(...x.map(Math.abs));
+            const maxAbsY = Math.max(...y.map(Math.abs));
+            const maxCoord = Math.max(maxAbsX, maxAbsY, params.l_initial) * 1.1; // Add margin
+            const scale = Math.min(canvasWidth / (2 * maxCoord), canvasHeight / (1.2 * maxCoord)); // Adjusted y-scale slightly
+            const originX = canvasWidth / 2;
+            const originY = canvasHeight * 0.15; // Pivot point near top-center
+
+            let frameIndex = 0;
+            const numFrames = t.length;
+            // Adjust speed: skip frames if simulation is long
+            const animationStep = Math.max(1, Math.floor(numFrames / 1000)); // Aim for ~1000 frames max display
+
+
+            function drawFrame() {
+                if (!isAnimationVisible) return; // Stop if hidden
+
+                if (frameIndex >= numFrames) {
+                     frameIndex = 0; // Loop animation
+                     // Or stop: cancelAnimationFrame(animationFrameId); logMessage("Animation slut."); return;
+                }
+
+                // Get current data
+                const currentX = x[frameIndex];
+                const currentY = y[frameIndex];
+                const currentL = l[frameIndex];
+                const currentTheta = theta[frameIndex];
+                const currentTime = t[frameIndex];
+
+                // Clear canvas
+                ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+                // Set transform for easier drawing (origin at pivot)
+                ctx.save();
+                ctx.translate(originX, originY);
+                ctx.scale(scale, scale); // Apply scaling
+
+                // Draw spring line
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(currentX, currentY);
+                ctx.strokeStyle = 'blue';
+                ctx.lineWidth = 2 / scale; // Keep line width constant regardless of scale
+                ctx.stroke();
+
+                // Draw mass
+                ctx.beginPath();
+                ctx.arc(currentX, currentY, 6 / scale, 0, 2 * Math.PI); // Draw circle for mass
+                ctx.fillStyle = 'red';
+                ctx.fill();
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 1 / scale;
+                ctx.stroke();
+
+                // Draw pivot point (after other drawing so it's on top)
+                ctx.beginPath();
+                ctx.rect(-4 / scale, -4 / scale, 8 / scale, 8 / scale);
+                ctx.fillStyle = 'black';
+                ctx.fill();
+
+                ctx.restore(); // Restore original transform
+
+                // Update info text
+                const currentAngleDeg = (currentTheta * 180 / Math.PI + 180) % 360 - 180;
+                animationInfo.textContent = `T:${currentTime.toFixed(2)}s  L:${currentL.toFixed(3)}m  θ:${currentAngleDeg.toFixed(1)}°`;
+
+                frameIndex += animationStep;
+                animationFrameId = requestAnimationFrame(drawFrame);
+            }
+
+            // Stop any previous animation loop before starting new one
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = requestAnimationFrame(drawFrame);
+        }
+
+        function stopAnimation() {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+            logMessage("Animation stoppad.");
+        }
+
+        function toggleAnimation() {
+            if (isAnimationVisible) {
+                stopAnimation();
+                animationContainer.style.display = 'none';
+                isAnimationVisible = false;
+                toggleAnimationButton.textContent = 'Visa Animation';
+            } else if (simulationResults) {
+                startAnimation(); // Will set isAnimationVisible to true
+            }
+        }
+
+        // --- Utility Functions ---
+        function clearPreviousResults() {
+            logMessage("Rensar tidigare resultat...");
+            simulationResults = null;
+            stopAnimation(); // Stop animation if running
+            isAnimationVisible = false;
+            animationContainer.style.display = 'none';
+            toggleAnimationButton.textContent = 'Visa Animation';
+
+
+            // Clear Plotly plots
+            Object.values(plotDivs).forEach(divId => {
+                const plotElement = document.getElementById(divId);
+                if (plotElement) Plotly.purge(plotElement); // Clear the plot
+                plotElement.innerHTML = ''; // Clear any leftover messages/HTML
+            });
+
+            // Clear canvas
+            const ctx = animationCanvas.getContext('2d');
+            ctx.clearRect(0, 0, animationCanvas.width, animationCanvas.height);
+            animationInfo.textContent = '';
+            finalValuesOutput.textContent = '';
+        }
+
+        function setButtonsDisabled(isDisabled, postRun = false) {
+            runButton.disabled = isDisabled;
+            // Only enable download/animation buttons if results exist (postRun=true)
+            downloadGraphsButton.disabled = isDisabled || !postRun;
+            toggleAnimationButton.disabled = isDisabled || !postRun;
+        }
+
+        function mean(arr) {
+            if (arr.length === 0) return 0;
+            return arr.reduce((a, b) => a + b, 0) / arr.length;
+        }
+
+        function standardDeviation(arr) {
+            if (arr.length < 2) return 0;
+            const mu = mean(arr);
+            const diffSq = arr.map(n => (n - mu) ** 2);
+            const avgSqDiff = mean(diffSq);
+            return Math.sqrt(avgSqDiff);
+        }
+
+        function downloadGraphs() {
+            if (!simulationResults) {
+                logMessage("Inga grafer att ladda ner. Kör simuleringen först.");
+                return;
+            }
+            logMessage("Förbereder nedladdning av grafer (PNG)...");
+
+            const promises = Object.entries(plotDivs).map(([name, divId]) => {
+                const plotElement = document.getElementById(divId);
+                if (plotElement && plotElement.classList.contains('js-plotly-plot')) { // Check if it's a Plotly plot
+                     const filename = `fjaderpendel_graf_${name}.png`;
+                     logMessage(`- Laddar ner ${filename}...`);
+                     return Plotly.downloadImage(plotElement, { format: 'png', width: 800, height: 600, filename: filename });
+                }
+                return Promise.resolve(); // Resolve immediately if not a plot
+            });
+
+            Promise.all(promises)
+                .then(() => {
+                    logMessage("Nedladdning av grafer klar (eller påbörjad).");
+                })
+                .catch(err => {
+                    logMessage(`Fel vid nedladdning av grafer: ${err}`);
+                    console.error(err);
+                });
+        }
+
+        function displayFinalValues(results) {
+             if (!results || results.t.length === 0) {
+                 finalValuesOutput.textContent = "Inga data att visa.";
+                 return;
+             }
+             const i = results.t.length - 1; // Index of the last point
+             const final_t = results.t[i];
+             const final_l = results.l[i];
+             const final_l_dot = results.l_dot[i];
+             const final_theta = results.theta[i];
+             const final_theta_dot = results.theta_dot[i];
+
+             // Normalize angle to (-180, 180]
+             const final_theta_norm_rad = Math.atan2(Math.sin(final_theta), Math.cos(final_theta));
+             const final_theta_deg = final_theta_norm_rad * 180 / Math.PI;
+             const final_theta_dot_deg = final_theta_dot * 180 / Math.PI;
+
+             finalValuesOutput.textContent =
+`Vid t = ${final_t.toFixed(2)} s:
+Fjäderlängd (l):           ${final_l.toFixed(4)} m
+Vinkel (θ):                ${final_theta_deg.toFixed(2)} grader
+Radiell hastighet (dl/dt):  ${final_l_dot.toFixed(4)} m/s
+Vinkelhastighet (dθ/dt):    ${final_theta_dot.toFixed(4)} rad/s (${final_theta_dot_deg.toFixed(2)} deg/s)`;
+        }
+
+
+        // --- Event Listeners ---
+        // Run immediately since script is at the end of body, DOM is ready
+        logMessage("Sidan laddad. Redo för simulering.");
+        setButtonsDisabled(false); // Ensure run button is enabled initially
+        downloadGraphsButton.disabled = true; // Start disabled
+        toggleAnimationButton.disabled = true; // Start disabled
+
+        runButton.addEventListener('click', runSimulation);
+        downloadGraphsButton.addEventListener('click', downloadGraphs);
+        toggleAnimationButton.addEventListener('click', toggleAnimation);
+
+        // ----- JavaScript End -----
+    </script>
+
+</body>
+</html>

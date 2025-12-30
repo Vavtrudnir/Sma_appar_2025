@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Spel</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            flex-direction: column; /* För att placera poäng ovanför */
+            font-family: sans-serif;
+            margin: 0; /* Ta bort standardmarginal */
+        }
+        #gameCanvas {
+            border: 5px solid #333;
+            background-color: #add8e6; /* Ljusblå bakgrund */
+        }
+        #scoreBoard {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #333; /* Mörkare textfärg för bättre kontrast */
+        }
+        #gameOverMessage {
+            position: absolute; /* Placera över canvas */
+            top: 50%; /* Centrera vertikalt relativt till föräldern (body) */
+            left: 50%; /* Centrera horisontellt relativt till föräldern (body) */
+            transform: translate(-50%, -50%); /* Justera för elementets egen storlek */
+            color: red;
+            font-size: 30px;
+            font-weight: bold;
+            display: none; /* Göm initialt */
+            text-align: center;
+            background-color: rgba(255, 255, 255, 0.85); /* Lätt genomskinlig bakgrund */
+            padding: 25px;
+            border-radius: 10px;
+            border: 2px solid red; /* Tydligare kant */
+            z-index: 10; /* Se till att det ligger över canvas */
+        }
+        /* Anpassa body lite för att säkerställa centrering */
+        html, body {
+             height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="scoreBoard">Poäng: 0</div>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <div id="gameOverMessage">
+        Game Over!<br>
+        Poäng: <span id="finalScore">0</span><br> <!-- Lägg till för att visa slutpoäng -->
+        Tryck Enter för att starta om
+    </div>
+
+    <script>
+        // --- Start av inbäddad JavaScript ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreBoard = document.getElementById('scoreBoard');
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        const finalScoreDisplay = document.getElementById('finalScore'); // Hämta elementet för slutpoäng
+
+        // Spelkonstanter
+        const GRID_SIZE = 20; // Storlek på varje ruta/segment
+        const CANVAS_WIDTH = canvas.width;
+        const CANVAS_HEIGHT = canvas.height;
+        const INITIAL_SPEED = 150; // Millisekunder mellan uppdateringar (lägre = snabbare)
+
+        // Spelvariabler
+        let snake;
+        let dx, dy; // Rörelseriktning (delta x, delta y)
+        let food;
+        let score;
+        let changingDirection; // Förhindrar snabba 180-graders svängar
+        let gameRunning;
+        let gameInterval;
+        let currentSpeed;
+
+        // Funktion för att starta/återställa spelet
+        function startGame() {
+            // Initialisera ormen i mitten
+            snake = [
+                { x: Math.floor(CANVAS_WIDTH / 2 / GRID_SIZE) * GRID_SIZE, y: Math.floor(CANVAS_HEIGHT / 2 / GRID_SIZE) * GRID_SIZE },
+                { x: Math.floor(CANVAS_WIDTH / 2 / GRID_SIZE) * GRID_SIZE - GRID_SIZE, y: Math.floor(CANVAS_HEIGHT / 2 / GRID_SIZE) * GRID_SIZE },
+                { x: Math.floor(CANVAS_WIDTH / 2 / GRID_SIZE) * GRID_SIZE - (2 * GRID_SIZE), y: Math.floor(CANVAS_HEIGHT / 2 / GRID_SIZE) * GRID_SIZE }
+            ];
+            // Initial riktning (höger)
+            dx = GRID_SIZE;
+            dy = 0;
+            score = 0;
+            changingDirection = false;
+            gameRunning = true;
+            currentSpeed = INITIAL_SPEED;
+            scoreBoard.textContent = `Poäng: ${score}`;
+            gameOverMessage.style.display = 'none'; // Göm game over-meddelande
+
+            generateFood(); // Skapa första matbiten
+
+            // Starta om gameloopen om den redan körs
+            if (gameInterval) {
+                clearInterval(gameInterval);
+            }
+            gameInterval = setInterval(gameLoop, currentSpeed);
+        }
+
+        // Huvudspelloop
+        function gameLoop() {
+            if (!gameRunning) {
+                return;
+            }
+
+            changingDirection = false; // Tillåt riktningsändring igen
+            clearCanvas();
+            drawFood();
+            moveSnake();
+            drawSnake();
+            checkCollision();
+        }
+
+        // Rensa canvas
+        function clearCanvas() {
+            ctx.fillStyle = '#add8e6'; // Ljusblå bakgrund
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        }
+
+        // Rita ormen
+        function drawSnake() {
+            snake.forEach((segment, index) => {
+                ctx.fillStyle = (index === 0) ? '#006400' : '#008000'; // Mörkgrönt huvud, ljusare kropp
+                ctx.strokeStyle = '#004d00'; // Mörk kantlinje
+                ctx.fillRect(segment.x, segment.y, GRID_SIZE, GRID_SIZE);
+                ctx.strokeRect(segment.x, segment.y, GRID_SIZE, GRID_SIZE);
+            });
+        }
+
+        // Flytta ormen
+        function moveSnake() {
+            // Skapa nytt huvud baserat på nuvarande riktning
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+            snake.unshift(head); // Lägg till huvudet i början av arrayen
+
+            // Kolla om ormen åt mat
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                scoreBoard.textContent = `Poäng: ${score}`;
+                generateFood(); // Skapa ny mat
+                // Öka hastigheten (valfritt - avkommentera vid behov)
+                /*
+                if (currentSpeed > 50) { // Sätt en maxhastighet
+                    clearInterval(gameInterval);
+                    currentSpeed -= 5; // Gör spelet gradvis snabbare
+                    console.log("New speed:", currentSpeed); // För felsökning
+                    gameInterval = setInterval(gameLoop, currentSpeed);
+                }
+                */
+            } else {
+                // Ta bort sista segmentet om ingen mat åts (ormen rör sig)
+                snake.pop();
+            }
+        }
+
+        // Skapa mat på slumpmässig plats
+        function generateFood() {
+            let foodX, foodY;
+            do {
+                foodX = Math.floor(Math.random() * (CANVAS_WIDTH / GRID_SIZE)) * GRID_SIZE;
+                foodY = Math.floor(Math.random() * (CANVAS_HEIGHT / GRID_SIZE)) * GRID_SIZE;
+            } while (isFoodOnSnake(foodX, foodY)); // Se till att maten inte hamnar på ormen
+
+            food = { x: foodX, y: foodY };
+        }
+
+        // Hjälpfunktion för att kolla om maten är på ormen
+        function isFoodOnSnake(foodX, foodY) {
+            return snake.some(segment => segment.x === foodX && segment.y === foodY);
+        }
+
+        // Rita maten
+        function drawFood() {
+            ctx.fillStyle = '#DC143C'; // Röd färg för maten (Crimson)
+            ctx.strokeStyle = '#8B0000'; // Mörkare röd kantlinje (DarkRed)
+            ctx.fillRect(food.x, food.y, GRID_SIZE, GRID_SIZE);
+            ctx.strokeRect(food.x, food.y, GRID_SIZE, GRID_SIZE);
+        }
+
+        // Kolla kollisioner (väggar och sig själv)
+        function checkCollision() {
+            const head = snake[0];
+
+            // Kolla väggkollision
+            if (head.x < 0 || head.x >= CANVAS_WIDTH || head.y < 0 || head.y >= CANVAS_HEIGHT) {
+                gameOver();
+                return;
+            }
+
+            // Kolla självkollision (börja från fjärde segmentet, kan inte krocka med de närmaste)
+            // Om ormen är kortare än 4 kan den inte krocka med sig själv på detta sätt.
+            for (let i = 4; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    gameOver();
+                    return;
+                }
+            }
+        }
+
+        // Hantera Game Over
+        function gameOver() {
+            gameRunning = false;
+            clearInterval(gameInterval);
+            finalScoreDisplay.textContent = score; // Uppdatera slutpoängen i meddelandet
+            gameOverMessage.style.display = 'block'; // Visa game over-meddelande
+        }
+
+        // Hantera tangenttryckningar
+        function changeDirection(event) {
+            // Ignorera om riktning redan ändrats denna tick ELLER om spelet inte körs (förutom Enter)
+            if (changingDirection && gameRunning) return;
+
+            const LEFT_KEY = 37; // ArrowLeft
+            const RIGHT_KEY = 39; // ArrowRight
+            const UP_KEY = 38; // ArrowUp
+            const DOWN_KEY = 40; // ArrowDown
+            const ENTER_KEY = 13; // Enter
+
+            // Använd event.key för modernare hantering, fall back till keyCode
+            const keyPressed = event.key || event.keyCode;
+
+            // Om spelet är över, lyssna bara efter Enter för omstart
+            if (!gameRunning) {
+                if (keyPressed === ENTER_KEY || keyPressed === 'Enter') {
+                    startGame();
+                }
+                return; // Avsluta funktionen om spelet inte körs och tangenten inte är Enter
+            }
+
+
+            // Förhindra 180-graders sväng direkt
+            const goingUp = dy === -GRID_SIZE;
+            const goingDown = dy === GRID_SIZE;
+            const goingRight = dx === GRID_SIZE;
+            const goingLeft = dx === -GRID_SIZE;
+
+            // Använd event.key för bättre läsbarhet och framtidssäkring
+            switch (keyPressed) {
+                case LEFT_KEY:
+                case 'ArrowLeft':
+                    if (!goingRight) {
+                        dx = -GRID_SIZE;
+                        dy = 0;
+                        changingDirection = true;
+                    }
+                    break;
+                case UP_KEY:
+                case 'ArrowUp':
+                    if (!goingDown) {
+                        dx = 0;
+                        dy = -GRID_SIZE;
+                        changingDirection = true;
+                    }
+                    break;
+                case RIGHT_KEY:
+                case 'ArrowRight':
+                    if (!goingLeft) {
+                        dx = GRID_SIZE;
+                        dy = 0;
+                        changingDirection = true;
+                    }
+                    break;
+                case DOWN_KEY:
+                case 'ArrowDown':
+                    if (!goingUp) {
+                        dx = 0;
+                        dy = GRID_SIZE;
+                        changingDirection = true;
+                    }
+                    break;
+            }
+        }
+
+        // Lyssna efter tangenttryckningar
+        document.addEventListener('keydown', changeDirection);
+
+        // Starta spelet när sidan laddas
+        startGame();
+        // --- Slut på inbäddad JavaScript ---
+    </script>
+</body>
+</html>

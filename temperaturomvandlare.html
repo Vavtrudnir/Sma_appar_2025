@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8" />
+<title>Temperaturomvandlare – Celsius → alla skalor</title>
+<style>
+    :root { font-family: system-ui, sans-serif; }
+    body   { display:flex; justify-content:center; padding:2rem; background:#f8fafc; }
+    main   { width:min(48rem, 96%); background:#ffffff; padding:2rem 2.5rem 3rem;
+             border-radius:1.5rem; box-shadow:0 6px 18px rgba(0,0,0,.08); }
+    h1     { font-size:2rem; margin:0 0 1.25rem; }
+    label  { display:block; margin-bottom:.25rem; font-weight:600; }
+    input[type=number]{
+        width:100%; padding:.6rem .75rem; font-size:1rem; border:1px solid #cbd5e1;
+        border-radius:.5rem; transition:border-color .2s;
+    }
+    input[type=number]:focus { outline:none; border-color:#0ea5e9; }
+    button {
+        display:block; margin-top:1.2rem; padding:.7rem 1.4rem; font-size:1rem;
+        background:#0ea5e9; color:#fff; border:none; border-radius:.6rem;
+        cursor:pointer; transition:background .2s;
+    }
+    button:hover { background:#0284c7; }
+    ul      { margin:.5rem 0 0 1.2rem; }
+    li      { margin:.25rem 0; }
+    details { margin-top:1.6rem; }
+    summary { cursor:pointer; font-weight:600; }
+    .result { margin-top:2rem; }
+    .scale-heading{margin-top:1.2rem;font-weight:700;}
+</style>
+</head>
+<body>
+<main>
+    <h1>Temperaturomvandlare</h1>
+
+    <label for="celsius">Ange temperatur (°C):</label>
+    <input id="celsius" type="number" step="any" placeholder="t.ex. 37" />
+
+    <button id="convert">Konvertera</button>
+
+    <section id="results" class="result" hidden></section>
+</main>
+
+<script>
+/* --------------------------------------------------
+   Omvandlingsformler – förenklade linjära relationer
+   -------------------------------------------------- */
+function celsiusTillAndraSkalor(c){
+    /* Mindre skalor: approximationer utifrån historiska fixpunkter */
+    const am  = (c + 240) * (73/340);     // 0°Am ~ −240 °C, 100 °C = 73°Am
+    const ho  = c * 0.30;                 // 0–30 mellan 0–100 °C
+    const da  = 0.525 * c + 7.5;          // 7.5–60 mellan 0–100 °C
+    const wd  = (c - 580.8) / 72.0;       // 0°Wd vid ~580.8 °C
+    const la  = c + 273.15;               // identisk gradstorlek med Kelvin/Celsius
+
+    return {
+        fahrenheit : (c * 9/5) + 32,
+        kelvin     : c + 273.15,
+        rankine    : (c + 273.15) * 9/5,
+        reaumur    : c * 4/5,
+        romer      : (c * 21/40) + 7.5,
+        delisle    : (100 - c) * 3/2,
+        newton     : c * 33/100,
+        amontons   : am,
+        hooke      : ho,
+        dalence    : da,
+        wedgwood   : wd,
+        lambert    : la
+    };
+}
+
+/* ----------------------------------------------- */
+document.getElementById("convert").addEventListener("click", () => {
+    const celsiusInput = document.getElementById("celsius");
+    const c            = parseFloat(celsiusInput.value.replace(",", "."));
+
+    if (Number.isNaN(c)) {
+        alert("Ogiltig inmatning – skriv en siffra.");
+        celsiusInput.focus();
+        return;
+    }
+
+    const s = celsiusTillAndraSkalor(c);
+    const r = document.getElementById("results");
+
+    /* -------------- Utskrift ---------------- */
+    r.innerHTML = `
+        <h2>${c} °C motsvarar:</h2>
+        <ul>
+            <li>${s.fahrenheit.toFixed(2)} °F – Fahrenheit</li>
+            <li>${s.kelvin.toFixed(2)} K – Kelvin</li>
+            <li>${s.rankine.toFixed(2)} °R – Rankine</li>
+            <li>${s.reaumur.toFixed(2)} °Ré – Réaumur</li>
+            <li>${s.romer.toFixed(2)} °Rø – Rømer</li>
+            <li>${s.delisle.toFixed(2)} °De – Delisle</li>
+            <li>${s.newton.toFixed(2)} °N – Newton</li>
+        </ul>
+
+        <h3 class="scale-heading">Ytterligare skalor</h3>
+        <ul>
+            <li>${s.amontons.toFixed(2)} °Am – Amontons</li>
+            <li>${s.hooke.toFixed(2)} °Ho – Hooke</li>
+            <li>${s.dalence.toFixed(2)} °Da – Dalencé</li>
+            <li>${s.wedgwood.toFixed(2)} °Wd – Wedgwood (original)</li>
+            <li>${s.lambert.toFixed(2)} °La – Lambert</li>
+        </ul>
+
+        <details>
+            <summary>Historik &amp; kuriosa – alla skalor</summary>
+            <p><strong>Celsius.</strong> Svensken <em>Anders Celsius</em> föreslog 1742 en skala där 0 °C var kokpunkten och 100 °C fryspunkten. Carl von Linné vände snart ordningen för praktisk användning, vilket gav dagens skala.</p>
+
+            <p><strong>Fahrenheit (°F).</strong> Daniel Gabriel Fahrenheit publicerade 1724 en skala byggd på tre referenser: en kall saltlösning (0 °F), isvatten (32 °F) och “blodvärme” (ursprungligen 96 °F). Numera definieras den linjärt via Celsius så att vattnets fryspunkt är 32 °F och kokpunkten 212 °F.</p>
+
+            <p><strong>Kelvin (K).</strong> 1848 introducerade fysikern Lord Kelvin idén om en absolut temperaturskala med 0 K vid absolut nollpunkt. Gradsteget är identiskt med Celsius, men skalan saknar negativa tal.</p>
+
+            <p><strong>Rankine (°R).</strong> Skapad 1859 av skotten William J. M. Rankine som en Fahrenheit-variant med absolut noll (0 °R). Användes förr i brittisk/amerikansk ångturbinteknik.</p>
+
+            <p><strong>Réaumur (°Ré).</strong> René‑Antoine de Réaumur (1731) valde sprit som vätska och delade in mellan is- och kokpunkt i 80 grader. Skalan var populär i Frankrike, Ryssland och mejeribranschen in på 1900‑talet.</p>
+
+            <p><strong>Rømer (°Rø).</strong> 1701 konstruerade dansken Ole Rømer en skala där vattnet frös vid 7,5 °Rø och kokade vid 60 °Rø. Fahrenheit lär ha inspirerats av dessa värden.</p>
+
+            <p><strong>Delisle (°De).</strong> Joseph‑Nicolas Delisle vände 1732 på ordningen så att 0 °De var kokande vatten och ca 150 °De fruset. Skalan antogs av ryska observatorier fram till mitten av 1800‑talet.</p>
+
+            <p><strong>Newton (°N).</strong> Isaac Newton ritade c. 1700 upp en grov astronomisk skala där smältande is var 0 °N och kokande vatten 12 °N. Den användes mest som intern referens.</p>
+
+            <p><strong>Amontons (°Am).</strong> Guillaume Amontons lät gastrycket fungera som termometer. Han extrapolerade trycket till –240 °C (0 °Am) – en tidig spådom om absolut noll.</p>
+
+            <p><strong>Hooke (°Ho).</strong> Robert Hooke (ca 1664) föreslog en 30‑gradig skala mellan fryspunkt och kokpunkt. Den banade väg för idén med tvåpunktskalibrering.</p>
+
+            <p><strong>Dalencé (°Da).</strong> 1688 beskrev J. Dalencé en kvicksilverskala med 7,5–60 mellan is och kokande vatten – ungefär dubbelt så grov som Celsius.</p>
+
+            <p><strong>Wedgwood (°Wd).</strong> För keramikugnar uppfann Josiah Wedgwood 1782 ett lerstifts‑pyrometer: 0 °Wd var rödvärme (≈ 580 °C) och varje grad cirka 72 °C – perfekt för porslin, värdelöst för precisionsfysik.</p>
+
+            <p><strong>Lambert (°La).</strong> Johann Heinrich Lambert teoretiserade 1779 om en absolut skala där 0 °La = –273 °C. Kelvin finslipade konceptet några årtionden senare.</p>
+        </details>
+    `;
+
+    r.hidden = false;
+});
+</script>
+</body>
+</html>

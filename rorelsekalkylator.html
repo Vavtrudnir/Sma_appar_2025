@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avancerad Rörelsekalkylator</title>
+    <style>
+        /* CSS (samma som tidigare med tillägg för formula-description) */
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px 0;
+        }
+
+        .calculator {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+
+        /* Stil för den allmänna beskrivningen */
+        .main-description {
+            color: #666;
+            margin-bottom: 25px;
+            font-size: 0.9em;
+        }
+
+        /* NYTT: Stil för formelbeskrivningen */
+        .formula-description {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 25px;
+            text-align: left;
+            font-size: 0.85em; /* Lite mindre text */
+        }
+        .formula-description h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #495057;
+            font-size: 1.1em; /* Relativt till 0.85em */
+        }
+        .formula-description p {
+            margin-bottom: 8px;
+            line-height: 1.4;
+            color: #343a40;
+             font-size: 1em; /* Relativt till 0.85em */
+        }
+        .formula-description code { /* Framhäv kod/formler */
+            background-color: #e9ecef;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 1.1em; /* Lite större för läsbarhet */
+        }
+        .formula-description strong {
+             color: #212529;
+        }
+        .formula-description sub {
+             font-size: 0.8em; /* Mindre subskript */
+        }
+
+
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+            width: 100%;
+        }
+        .input-group input[type="number"] {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px 0 0 4px;
+            box-sizing: border-box;
+            font-size: 1em;
+            margin-right: -1px;
+            min-width: 100px;
+        }
+        .input-group select {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 0 4px 4px 0;
+            background-color: #eee;
+            font-size: 0.9em;
+            height: calc(2.25em + 20px + 2px);
+            cursor: pointer;
+        }
+
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type=number] {
+          -moz-appearance: textfield;
+        }
+
+        .button-group {
+             margin-top: 20px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 10px;
+            margin-right: 5px;
+            transition: background-color 0.2s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button#clearBtn {
+            background-color: #6c757d;
+        }
+        button#clearBtn:hover {
+            background-color: #5a6268;
+        }
+
+         .result-section {
+            margin-top: 25px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            text-align: left;
+            color: #333;
+        }
+        .result-section h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            color: #555;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+        .result-section p {
+            margin: 8px 0;
+            font-size: 1em;
+            color: #333;
+            font-weight: normal;
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             flex-wrap: wrap;
+        }
+         .result-section p span:first-child {
+             margin-right: 10px;
+         }
+        .result-section .value-unit-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .result-section .value {
+            font-weight: bold;
+        }
+        .result-section select {
+             padding: 3px 5px;
+             font-size: 0.85em;
+             border: 1px solid #ccc;
+             border-radius: 4px;
+             background-color: #fff;
+        }
+        .result-section.error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+         .result-section.error h3 {
+            color: #721c24;
+            border-bottom-color: #f5c6cb;
+        }
+         .result-section.error p {
+             color: #721c24;
+             display: block;
+         }
+    </style>
+</head>
+<body>
+
+    <div class="calculator">
+        <h1>Avancerad Rörelsekalkylator</h1>
+        <p class="main-description">Ange två av värdena (v, s, t) och eventuellt massan för att beräkna det tredje värdet och kinetisk energi.</p>
+
+        <!-- NYTT: Formelbeskrivning -->
+        <div class="formula-description">
+            <h4>Formler som används:</h4>
+            <p>
+                <strong>Hastighet (v), Sträcka (s), Tid (t):</strong> Beräknar den okända variabeln med grundformeln <code>v = s / t</code> och dess omställningar: <code>s = v * t</code> och <code>t = s / v</code>. Kräver att exakt två av dessa värden anges.
+            </p>
+            <p>
+                <strong>Kinetisk Energi (E<sub>k</sub>):</strong> Beräknas med formeln <code>E<sub>k</sub> = ½ × m × v²</code> (0.5 × massa × hastighet²). Kräver att massa (<code>m</code>) och hastighet (<code>v</code>) är kända (antingen angivna eller beräknade).
+            </p>
+            <p>
+                <strong>Enheter:</strong> Indata konverteras till <strong>SI-enheter</strong> (<code>m/s</code>, <code>m</code>, <code>s</code>, <code>kg</code>) för interna beräkningar. Resultaten (inklusive energi i <code>Joule</code>) konverteras sedan tillbaka till de enheter du valt för visning (<code>km/h</code>, <code>km</code>, <code>min</code>, <code>MJ</code>).
+            </p>
+        </div>
+        <!-- Slut på formelbeskrivning -->
+
+
+        <!-- Inputfält (samma som tidigare) -->
+        <div class="input-group">
+            <label for="velocity">Hastighet (v):</label>
+            <input type="number" id="velocity" placeholder="t.ex. 10">
+            <select id="velocityUnit">
+                <option value="m/s" selected>m/s</option>
+                <option value="km/h">km/h</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label for="distance">Sträcka (s):</label>
+            <input type="number" id="distance" placeholder="t.ex. 100">
+            <select id="distanceUnit">
+                <option value="m" selected>m</option>
+                <option value="km">km</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label for="time">Tid (t):</label>
+            <input type="number" id="time" placeholder="t.ex. 10">
+            <select id="timeUnit">
+                <option value="s" selected>s</option>
+                <option value="min">min</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label for="mass">Massa (m):</label>
+            <input type="number" id="mass" placeholder="t.ex. 5">
+             <select id="massUnit" style="background-color: #ddd;" disabled>
+                <option value="kg" selected>kg</option>
+            </select>
+        </div>
+
+        <div class="button-group">
+            <button id="calculateBtn">Beräkna</button>
+            <button id="clearBtn" type="button">Rensa</button>
+        </div>
+
+        <!-- Resultatområde (samma som tidigare) -->
+        <div id="resultArea" class="result-section" style="display: none;">
+             <h3>Resultat</h3>
+             <p id="calculatedValueP"></p>
+             <p id="kineticEnergyResultP">
+                 <span>Kinetisk Energi (E<sub style='font-size: 0.7em;'>k</sub>):</span>
+                 <span class="value-unit-container">
+                     <span id="kineticEnergyValue" class="value"></span>
+                     <select id="energyUnitSelect">
+                         <option value="J" selected>J</option>
+                         <option value="MJ">MJ</option>
+                     </select>
+                 </span>
+             </p>
+        </div>
+
+        <!-- Felmeddelandeområde (samma som tidigare) -->
+         <div id="errorArea" class="result-section error" style="display: none;">
+             <h3>Fel</h3>
+             <p id="errorMessage"></p>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript (Inga ändringar i logiken här, bara HTML/CSS ovan)
+        const velocityInput = document.getElementById('velocity');
+        const velocityUnit = document.getElementById('velocityUnit');
+        const distanceInput = document.getElementById('distance');
+        const distanceUnit = document.getElementById('distanceUnit');
+        const timeInput = document.getElementById('time');
+        const timeUnit = document.getElementById('timeUnit');
+        const massInput = document.getElementById('mass');
+
+        const calculateBtn = document.getElementById('calculateBtn');
+        const clearBtn = document.getElementById('clearBtn');
+
+        const resultArea = document.getElementById('resultArea');
+        const calculatedValueP = document.getElementById('calculatedValueP');
+        const kineticEnergyResultP = document.getElementById('kineticEnergyResultP');
+        const kineticEnergyValueSpan = document.getElementById('kineticEnergyValue');
+        const energyUnitSelect = document.getElementById('energyUnitSelect');
+
+        const errorArea = document.getElementById('errorArea');
+        const errorMessageP = document.getElementById('errorMessage');
+
+        let calculatedEnergyInJoules = NaN;
+
+        function convertToBaseUnit(value, unit) {
+            if (isNaN(value)) return NaN;
+            switch(unit) {
+                case 'km/h': return value / 3.6;
+                case 'km':   return value * 1000;
+                case 'min':  return value * 60;
+                case 'm/s': case 'm': case 's': case 'kg':
+                default:     return value;
+            }
+        }
+        function convertFromBaseUnit(value, unit) {
+             if (isNaN(value)) return NaN;
+             switch(unit) {
+                case 'km/h': return value * 3.6;
+                case 'km':   return value / 1000;
+                case 'min':  return value / 60;
+                case 'm/s': case 'm': case 's': case 'kg':
+                default:     return value;
+            }
+        }
+        function formatNumber(num) {
+            if (isNaN(num)) return '';
+            if (Math.abs(num) > 0 && Math.abs(num) < 0.001) {
+                return num.toPrecision(3);
+             }
+             if (Math.abs(num) > 10000 || (Math.abs(num) > 0 && Math.abs(num) < 0.1)) {
+                 return num.toPrecision(4);
+             }
+            let formatted = parseFloat(num.toFixed(4));
+            return formatted.toString();
+        }
+
+        function updateEnergyDisplay() {
+            if (isNaN(calculatedEnergyInJoules)) {
+                kineticEnergyResultP.style.display = 'none';
+                return;
+            }
+
+            const selectedEnergyUnit = energyUnitSelect.value;
+            let displayEnergyValue;
+
+            if (selectedEnergyUnit === 'MJ') {
+                displayEnergyValue = calculatedEnergyInJoules / 1000000;
+            } else { // 'J'
+                displayEnergyValue = calculatedEnergyInJoules;
+            }
+
+            kineticEnergyValueSpan.textContent = formatNumber(displayEnergyValue);
+            kineticEnergyResultP.style.display = 'flex';
+        }
+
+        calculateBtn.addEventListener('click', () => {
+            resultArea.style.display = 'none';
+            errorArea.style.display = 'none';
+            calculatedValueP.textContent = '';
+            kineticEnergyResultP.style.display = 'none';
+            kineticEnergyValueSpan.textContent = '';
+            errorMessageP.textContent = '';
+            calculatedEnergyInJoules = NaN;
+
+            const v_input = parseFloat(velocityInput.value);
+            const s_input = parseFloat(distanceInput.value);
+            const t_input = parseFloat(timeInput.value);
+            const m_input = parseFloat(massInput.value);
+
+            const v_unit = velocityUnit.value;
+            const s_unit = distanceUnit.value;
+            const t_unit = timeUnit.value;
+            const m_unit = 'kg';
+
+            const v_base = convertToBaseUnit(v_input, v_unit);
+            const s_base = convertToBaseUnit(s_input, s_unit);
+            const t_base = convertToBaseUnit(t_input, t_unit);
+            const m_base = convertToBaseUnit(m_input, m_unit);
+
+            let vst_InputsProvided = 0;
+            if (!isNaN(v_base)) vst_InputsProvided++;
+            if (!isNaN(s_base)) vst_InputsProvided++;
+            if (!isNaN(t_base)) vst_InputsProvided++;
+
+            let calculatedVar = null;
+            let calculatedResultBase = NaN;
+            let errorMsg = '';
+
+            if (vst_InputsProvided === 2) {
+                 try {
+                    if ((!isNaN(s_base) && s_base < 0) && !( !isNaN(v_base) && v_base < 0 )) {
+                         throw new Error("Sträckan kan endast vara negativ om hastigheten också är det (förflyttning).");
+                    }
+                     if (!isNaN(t_base) && t_base <= 0) {
+                        throw new Error("Tiden måste vara positiv.");
+                     }
+
+                    if (isNaN(v_base)) {
+                        if (t_base === 0) {
+                            if (s_base === 0) throw new Error("Odefinierad hastighet (0/0).");
+                            throw new Error("Kan inte dividera med tiden noll.");
+                        }
+                        calculatedResultBase = s_base / t_base;
+                        calculatedVar = 'v';
+                        velocityInput.value = formatNumber(convertFromBaseUnit(calculatedResultBase, v_unit));
+                        calculatedValueP.innerHTML = `Beräknad Hastighet (v): <span class="value">${formatNumber(convertFromBaseUnit(calculatedResultBase, v_unit))} ${v_unit}</span>`;
+
+                    } else if (isNaN(s_base)) {
+                        calculatedResultBase = v_base * t_base;
+                        calculatedVar = 's';
+                        distanceInput.value = formatNumber(convertFromBaseUnit(calculatedResultBase, s_unit));
+                         calculatedValueP.innerHTML = `Beräknad Sträcka (s): <span class="value">${formatNumber(convertFromBaseUnit(calculatedResultBase, s_unit))} ${s_unit}</span>`;
+
+                    } else {
+                        if (v_base === 0) {
+                             if (s_base === 0) throw new Error("Odefinierad tid (0/0).");
+                            throw new Error("Kan inte beräkna tid med hastigheten noll.");
+                        }
+                        calculatedResultBase = s_base / v_base;
+                         if (calculatedResultBase < 0) {
+                             throw new Error("Negativ tid beräknad. Kontrollera tecken på s och v.");
+                         }
+                        calculatedVar = 't';
+                        timeInput.value = formatNumber(convertFromBaseUnit(calculatedResultBase, t_unit));
+                         calculatedValueP.innerHTML = `Beräknad Tid (t): <span class="value">${formatNumber(convertFromBaseUnit(calculatedResultBase, t_unit))} ${t_unit}</span>`;
+                    }
+
+                 } catch (error) {
+                    errorMsg = error.message;
+                }
+            } else if (vst_InputsProvided < 2) {
+                errorMsg = "Ange minst två av värdena (hastighet, sträcka, tid) för att utföra en beräkning.";
+            } else {
+                 calculatedValueP.textContent = "Ingen v/s/t beräkning utförd (alla fält ifyllda)."
+            }
+
+            let final_v_base = isNaN(v_base) ? (calculatedVar === 'v' ? calculatedResultBase : NaN) : v_base;
+
+            if (!isNaN(m_base) && m_base >= 0 && !isNaN(final_v_base)) {
+                 calculatedEnergyInJoules = 0.5 * m_base * final_v_base * final_v_base;
+                 updateEnergyDisplay();
+            } else if (!isNaN(m_base) && m_base < 0) {
+                 const massError = "Massan kan inte vara negativ.";
+                 errorMsg = errorMsg ? `${errorMsg} ${massError}` : massError;
+            } else if (!isNaN(m_base) && isNaN(final_v_base) && !errorMsg) {
+                 kineticEnergyValueSpan.textContent = "Hastighet saknas/kunde inte beräknas.";
+                 kineticEnergyResultP.style.display = 'flex';
+            }
+
+
+            if (errorMsg) {
+                errorMessageP.textContent = errorMsg;
+                errorArea.style.display = 'block';
+                resultArea.style.display = 'none';
+            } else if (calculatedValueP.textContent || !isNaN(calculatedEnergyInJoules)) {
+                resultArea.style.display = 'block';
+                errorArea.style.display = 'none';
+            }
+        });
+
+        energyUnitSelect.addEventListener('change', updateEnergyDisplay);
+
+        clearBtn.addEventListener('click', () => {
+            velocityInput.value = '';
+            distanceInput.value = '';
+            timeInput.value = '';
+            massInput.value = '';
+
+            velocityUnit.value = 'm/s';
+            distanceUnit.value = 'm';
+            timeUnit.value = 's';
+            energyUnitSelect.value = 'J';
+
+            resultArea.style.display = 'none';
+            errorArea.style.display = 'none';
+            calculatedValueP.textContent = '';
+            kineticEnergyResultP.style.display = 'none';
+            kineticEnergyValueSpan.textContent = '';
+            errorMessageP.textContent = '';
+            calculatedEnergyInJoules = NaN;
+        });
+
+    </script>
+
+</body>
+</html>

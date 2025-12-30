@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8" />
+    <title>Triangelkalkylator – SAS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            line-height: 1.6;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        label {
+            display: block;
+            margin-top: 1rem;
+            font-weight: 600;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 0.55rem 0.6rem;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+        button {
+            margin-top: 1.7rem;
+            padding: 0.8rem 1.8rem;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background-color: #0077cc;
+            color: #fff;
+            transition: background 0.2s ease;
+        }
+        button:hover {
+            background-color: #005fa3;
+        }
+        .result, .error {
+            margin-top: 2rem;
+            padding: 1.2rem;
+            border-radius: 8px;
+        }
+        .result {
+            background: #f2f2f2;
+        }
+        .error {
+            background: #ffe2e2;
+            color: #a90000;
+        }
+        ul {
+            padding-left: 1.4rem;
+        }
+        #triangle {
+            display: block;
+            margin: 1rem auto 0 auto;
+            background: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+<h1>Triangelkalkylator (SAS)</h1>
+
+<label for="side1">Längd på första sidan (a):</label>
+<input type="text" id="side1" placeholder="t.ex. 5" />
+
+<label for="side2">Längd på andra sidan (b):</label>
+<input type="text" id="side2" placeholder="t.ex. 7" />
+
+<label for="angle">Vinkel mellan dem (°):</label>
+<input type="text" id="angle" placeholder="t.ex. 60" />
+
+<button id="calculate">Beräkna</button>
+
+<div class="error" id="error" hidden></div>
+<div class="result" id="output" hidden>
+    <p><strong>Beräknad tredje sida (c):</strong> <span id="side3Result"></span></p>
+    <p><strong>Omkrets:</strong> <span id="perimeter"></span></p>
+    <p><strong>Area:</strong> <span id="area"></span></p>
+    <p><strong>Vinklar:</strong></p>
+    <ul>
+        <li>Vinkel A (motsatt sida a): <span id="angleAVal"></span>°</li>
+        <li>Vinkel B (motsatt sida b): <span id="angleBVal"></span>°</li>
+        <li>Vinkel C (mellan a & b): <span id="angleCVal"></span>°</li>
+    </ul>
+    <svg id="triangle" width="400" height="400" viewBox="0 0 400 400" hidden></svg>
+</div>
+
+<script>
+function parseNumber(str) {
+    const normalized = str.trim().replace(',', '.');
+    return parseFloat(normalized);
+}
+
+function angleCos(opposite, adjacent1, adjacent2) {
+    return (
+        Math.acos(
+            (adjacent1 ** 2 + adjacent2 ** 2 - opposite ** 2) / (2 * adjacent1 * adjacent2)
+        ) * 180
+    ) / Math.PI;
+}
+
+function drawTriangle(a, b, c, angleA, angleB, angleC) {
+    const svg = document.getElementById('triangle');
+    svg.innerHTML = '';
+
+    const padding = 30;
+    const canvas = 400;
+
+    // Original obeskalade koordinater: A(0,0), B(c,0), C(xC,yC)
+    const xC = (b * b + c * c - a * a) / (2 * c);
+    const yC = Math.sqrt(Math.max(b * b - xC * xC, 0));
+
+    // Horisontell spännvidd kan vara större än c om xC<0 eller >c
+    const minX = Math.min(0, c, xC);
+    const maxX = Math.max(0, c, xC);
+    const widthSpan = maxX - minX;
+    const heightSpan = yC;
+
+    const scale = (canvas - 2 * padding) / Math.max(widthSpan, heightSpan);
+
+    // Funktion för skalning + centrering
+    const left = (canvas - widthSpan * scale) / 2;
+    const baselineY = canvas - padding; // placera bas vid botten med padding
+
+    function sx(x) {
+        return (x - minX) * scale + left;
+    }
+    function sy(y) {
+        return baselineY - y * scale;
+    }
+
+    const A = { x: sx(0), y: sy(0) };
+    const B = { x: sx(c), y: sy(0) };
+    const C = { x: sx(xC), y: sy(yC) };
+
+    // Triangelpolygon
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute('points', `${A.x},${A.y} ${B.x},${B.y} ${C.x},${C.y}`);
+    polygon.setAttribute('fill', '#cce5ff');
+    polygon.setAttribute('stroke', '#005fa3');
+    polygon.setAttribute('stroke-width', '2');
+    svg.appendChild(polygon);
+
+    // Centroid för etikettplacering
+    const centroid = { x: (A.x + B.x + C.x) / 3, y: (A.y + B.y + C.y) / 3 };
+
+    function addAngleLabel(point, text) {
+        const dx = centroid.x - point.x;
+        const dy = centroid.y - point.y;
+        const labelX = point.x + dx * 0.35;
+        const labelY = point.y + dy * 0.35;
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', labelX);
+        label.setAttribute('y', labelY);
+        label.setAttribute('font-size', '14');
+        label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('dominant-baseline', 'central');
+        label.textContent = text;
+        svg.appendChild(label);
+    }
+
+    addAngleLabel(A, `${angleA.toFixed(0)}°`);
+    addAngleLabel(B, `${angleB.toFixed(0)}°`);
+    addAngleLabel(C, `${angleC.toFixed(0)}°`);
+
+    svg.hidden = false;
+}
+
+document.getElementById('calculate').addEventListener('click', () => {
+    const errorEl = document.getElementById('error');
+    const outputEl = document.getElementById('output');
+    const svgEl = document.getElementById('triangle');
+
+    errorEl.hidden = true;
+    outputEl.hidden = true;
+    svgEl.hidden = true;
+
+    const a = parseNumber(document.getElementById('side1').value);
+    const b = parseNumber(document.getElementById('side2').value);
+    const gammaDeg = parseNumber(document.getElementById('angle').value);
+
+    if ([a, b, gammaDeg].some((x) => isNaN(x) || x <= 0)) {
+        errorEl.textContent = 'Ange giltiga positiva tal för sidorna och vinkeln – använd punkt eller komma som decimaltecken.';
+        errorEl.hidden = false;
+        return;
+    }
+    if (gammaDeg >= 180) {
+        errorEl.textContent = 'Vinkeln måste vara mindre än 180° för att bilda en triangel.';
+        errorEl.hidden = false;
+        return;
+    }
+
+    const gammaRad = (gammaDeg * Math.PI) / 180;
+    const c = Math.sqrt(a * a + b * b - 2 * a * b * Math.cos(gammaRad));
+
+    const angleC = gammaDeg;
+    const angleA = angleCos(a, b, c);
+    const angleB = 180 - angleA - angleC;
+
+    const perimeter = a + b + c;
+    const area = 0.5 * a * b * Math.sin(gammaRad);
+
+    document.getElementById('side3Result').textContent = c.toFixed(2);
+    document.getElementById('perimeter').textContent = perimeter.toFixed(2);
+    document.getElementById('area').textContent = area.toFixed(2);
+    document.getElementById('angleAVal').textContent = angleA.toFixed(2);
+    document.getElementById('angleBVal').textContent = angleB.toFixed(2);
+    document.getElementById('angleCVal').textContent = angleC.toFixed(2);
+
+    drawTriangle(a, b, c, angleA, angleB, angleC);
+    outputEl.hidden = false;
+});
+</script>
+</body>
+</html>

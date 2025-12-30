@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lös linjära ekvationer (1–10 okända)</title>
+  <meta name="description" content="Interaktiv lösare för linjära ekvationer med upp till tio okända, inklusive grafritning vid två okända." />
+  <!-- TailwindCSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Math.js -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@12.1.0/lib/browser/math.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-slate-50 text-gray-800 min-h-screen flex flex-col items-center p-4">
+  <h1 class="text-3xl font-bold mb-6">Lös linjära ekvationer</h1>
+
+  <!-- Huvudkort -->
+  <div class="w-full max-w-2xl bg-white p-6 rounded-2xl shadow-xl">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+      <div>
+        <label for="unknowns" class="block mb-1 font-medium">Antal okända (1–10)</label>
+        <select id="unknowns" class="w-full border rounded-xl p-2" onchange="generateForm()">
+          <!-- Generate options 1–10 -->
+          <script>
+            document.write(Array.from({ length: 10 }, (_, i) => `<option value="${i + 1}" ${i === 1 ? 'selected' : ''}>${i + 1}</option>`).join(''));
+          </script>
+        </select>
+      </div>
+      <button onclick="solveSystem()" class="bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-2">Lös</button>
+    </div>
+
+    <!-- Dynamiskt formulär -->
+    <form id="coeffForm" class="mt-6 space-y-3"></form>
+
+    <!-- Resultat -->
+    <div id="result" class="mt-6 text-lg font-semibold whitespace-pre-line"></div>
+  </div>
+
+  <!-- Grafcontainer (visas endast vid n = 2) -->
+  <div class="w-full max-w-2xl mt-8" id="chartContainer" style="display:none;">
+    <canvas id="graphCanvas" height="400"></canvas>
+  </div>
+
+  <!-- Instruktioner -->
+  <section class="w-full max-w-2xl bg-white p-6 mt-10 rounded-2xl shadow">
+    <h2 class="text-2xl font-semibold mb-4">Instruktioner</h2>
+    <ol class="list-decimal list-inside space-y-1">
+      <li>Välj antal okända (1&nbsp;&ndash;&nbsp;10) i menyn.</li>
+      <li>Ange koefficienter samt konstantled för varje ekvation i de fält som skapas (en rad per ekvation).</li>
+      <li>Klicka <strong>Lös</strong> för att se lösningen. En graf ritas automatiskt om systemet har exakt två okända.</li>
+    </ol>
+
+    <h3 class="text-xl font-semibold mt-6 mb-2">Exempel på inmatning</h3>
+    <div class="space-y-6">
+      <!-- 2 okända -->
+      <div>
+        <h4 class="font-semibold">2 okända</h4>
+        <pre class="bg-slate-100 rounded-xl p-4 whitespace-pre-wrap">Ekvationer:
+2x + 3y = 6
+x - y = 2
+
+Rad 1: 2 3 6
+Rad 2: 1 -1 2</pre>
+      </div>
+      <!-- 4 okända -->
+      <div>
+        <h4 class="font-semibold">4 okända</h4>
+        <pre class="bg-slate-100 rounded-xl p-4 whitespace-pre-wrap">Ekvationer:
+x + y + z + w = 10
+2x - y + 3z - w = 8
+-x + 4y + z + 2w = 7
+3x - z + w = 5
+
+Rad 1: 1 1 1 1 10
+Rad 2: 2 -1 3 -1 8
+Rad 3: -1 4 1 2 7
+Rad 4: 3 0 -1 1 5</pre>
+      </div>
+    </div>
+  </section>
+
+<script>
+  // Variabelnamn upp till 10
+  const varNames = ['x','y','z','w','v','u','t','s','r','q'];
+
+  function generateForm() {
+    const n = parseInt(document.getElementById('unknowns').value);
+    const form = document.getElementById('coeffForm');
+    form.innerHTML = '';
+
+    for (let i = 0; i < n; i++) {
+      const row = document.createElement('div');
+      row.className = 'grid gap-2';
+      row.style.gridTemplateColumns = `repeat(${n + 1}, minmax(0, 1fr))`;
+
+      for (let j = 0; j < n; j++) {
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.step = 'any';
+        inp.placeholder = `a${i + 1}${varNames[j] || 'var'}`;
+        inp.className = 'border rounded-lg p-2 w-full';
+        row.appendChild(inp);
+      }
+      const inp = document.createElement('input'); // konstantled
+      inp.type = 'number';
+      inp.step = 'any';
+      inp.placeholder = `c${i + 1}`;
+      inp.className = 'border rounded-lg p-2 w-full';
+      row.appendChild(inp);
+      form.appendChild(row);
+    }
+
+    document.getElementById('chartContainer').style.display = 'none';
+  }
+
+  document.addEventListener('DOMContentLoaded', generateForm);
+
+  let chartInstance = null;
+
+  function solveSystem() {
+    const n = parseInt(document.getElementById('unknowns').value);
+    const rows = Array.from(document.getElementById('coeffForm').children);
+
+    if (rows.length !== n) {
+      alert('Formuläret verkar sakna rader. Välj antal okända igen.');
+      return;
+    }
+
+    try {
+      const A = [];
+      const b = [];
+
+      rows.forEach((row) => {
+        const vals = Array.from(row.children).map((inp) => parseFloat(inp.value));
+        if (vals.some((v) => isNaN(v))) throw 'Alla fält måste fyllas i med siffror.';
+        A.push(vals.slice(0, n));
+        b.push(vals[n]);
+      });
+
+      const sol = math.lusolve(A, b).map((arr) => arr[0]);
+      const resVars = varNames.slice(0, n);
+      document.getElementById('result').textContent = sol
+        .map((v, i) => `${resVars[i]} = ${Number.parseFloat(v).toFixed(4)}`)
+        .join(', ');
+
+      if (n === 2) {
+        drawGraph(A, b, sol);
+      } else {
+        if (chartInstance) chartInstance.destroy();
+        document.getElementById('chartContainer').style.display = 'none';
+      }
+    } catch (err) {
+      document.getElementById('result').textContent = 'Fel: ' + err;
+    }
+  }
+
+  function drawGraph(A, bVals, sol) {
+    const ctx = document.getElementById('graphCanvas').getContext('2d');
+    const xVals = math.range(-10, 10, 0.5).toArray();
+    const datasets = A.map((row, idx) => {
+      const [a, b] = row;
+      const c = bVals[idx];
+      const y = xVals.map((x) => (c - a * x) / b);
+      return {
+        label: `Ekvation ${idx + 1}`,
+        data: xVals.map((x, i) => ({ x, y: y[i] })),
+        borderWidth: 2,
+        showLine: true,
+        fill: false,
+        pointRadius: 0,
+      };
+    });
+
+    datasets.push({
+      label: 'Lösning',
+      data: [{ x: sol[0], y: sol[1] }],
+      pointRadius: 6,
+      borderWidth: 0,
+      showLine: false,
+    });
+
+    if (chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(ctx, {
+      type: 'scatter',
+      data: { datasets },
+      options: {
+        responsive: true,
+        interaction: { mode: 'nearest' },
+        plugins: { legend: { display: true } },
+        scales: {
+          x: { title: { display: true, text: 'x' }, suggestedMin: -10, suggestedMax: 10 },
+          y: { title: { display: true, text: 'y' }, suggestedMin: -10, suggestedMax: 10 },
+        },
+      },
+    });
+    document.getElementById('chartContainer').style.display = 'block';
+  }
+</script>
+</body>
+</html>
