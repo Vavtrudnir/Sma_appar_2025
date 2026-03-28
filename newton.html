@@ -250,7 +250,11 @@
         // Beräkningslogik
         calculateBtn.addEventListener('click', () => {
             // Nollställningar
-            if(resultArea) resultArea.style.display = 'none';
+            if(resultArea) {
+                resultArea.style.display = 'none';
+                const existingNoMotionInfo = resultArea.querySelector('.no-motion-info');
+                if (existingNoMotionInfo) existingNoMotionInfo.remove();
+            }
             if(errorArea) errorArea.style.display = 'none';
             if(chartSection) chartSection.style.display = 'none';
             if(distanceListSection) distanceListSection.style.display = 'none';
@@ -336,6 +340,7 @@
                         const noMotionInfo = document.createElement('p');
                         noMotionInfo.style.fontSize = '0.9em';
                         noMotionInfo.style.marginTop = '10px';
+                        noMotionInfo.className = 'no-motion-info';
                         noMotionInfo.textContent = 'Eftersom accelerationen är 0 m/s², sker ingen förflyttning från vila. Graf och sträcklista visas inte.';
                         resultArea.appendChild(noMotionInfo);
                     }

@@ -12,6 +12,9 @@
  label{margin-right:0.6rem; white-space:nowrap}
  input,select{padding:4px 6px; margin:2px 4px; width:90px}
  input[type="checkbox"]{width:auto}
+ .help-text { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 12px; margin-bottom: 12px; font-size: 0.9em; line-height: 1.4; color: #444; }
+ .help-text ul { margin: 0; padding-left: 20px; }
+ .help-text li { margin-bottom: 4px; }
  #chartContainer{max-width:900px; height:420px; margin-bottom:1rem}
  #result{background:#f7f7f7; padding:8px; border:1px solid #ccc; white-space:pre; overflow:auto; max-height:300px}
  button{padding:6px 12px; margin-right:10px}
@@ -31,17 +34,22 @@
  <label>Massa (kg)
   <input type="number" id="mass" value="10" step="0.01">
  </label>
- <label>Plats
-  <select id="body">
-   <option value="Jorden">Jorden (9.81)</option>
-   <option value="Månen">Månen (1.62)</option>
-   <option value="Mars">Mars (3.71)</option>
-  </select>
+ <label>Gravitation (m/s²)
+  <input type="number" id="gravity" value="9.81" step="0.01">
  </label>
 </fieldset>
 
 <fieldset>
  <legend>Fysik & Miljö</legend>
+ <div class="help-text">
+  <ul>
+   <li><strong>C<sub>d</sub> (Luftmotståndskoefficient):</strong> Beskriver objektets aerodynamik. T.ex. har en sfär ca 0.47, medan en droppform kan ha 0.04.</li>
+   <li><strong>Diameter & Tryck:</strong> Bestämmer objektets tvärsnittsarea och luftens densitet. (Normalt lufttryck vid havsytan är 101325 Pa).</li>
+   <li><strong>Vind X/Y:</strong> Hastigheten på luften i horisontell (X) och vertikal (Y) riktning.</li>
+   <li><strong>dt (s):</strong> Tidssteget för simuleringen. Lägre värde ger mer exakt kurva men tyngre beräkning. (0.01s är en bra standard).</li>
+   <li><strong>Målhöjd:</strong> Bestämmer var marken/målet är. Simuleringen stannar när projektilen faller till eller under denna höjd.</li>
+  </ul>
+ </div>
  <label><input type="checkbox" id="useDrag" checked> Luftmotstånd</label>
  <label>C<sub>d</sub>
   <input type="number" id="cd" value="0.47" step="0.01">
@@ -80,7 +88,6 @@
 
 <script>
 // Konstantdata
-const GRAVITY = { 'Jorden': 9.81, 'Månen': 1.62, 'Mars': 3.71 };
 const RHO_STD = 1.225;
 const P_STD = 101325;
 
@@ -102,29 +109,37 @@ function initChart() {
 }
 initChart();
 
-function calcIdeal(v0, angleDeg, g) {
+function calcIdeal(v0, angleDeg, g, targetAlt) {
   const rad = angleDeg * Math.PI / 180;
-  return (v0 * v0 * Math.sin(2 * rad)) / g;
+  const vy = v0 * Math.sin(rad);
+  const vx = v0 * Math.cos(rad);
+  
+  const discriminant = vy * vy - 2 * g * targetAlt;
+  if (discriminant < 0) {
+    return NaN; // Når aldrig upp till målhöjden
+  }
+  
+  const t = (vy + Math.sqrt(discriminant)) / g;
+  return t > 0 ? vx * t : NaN;
 }
 
 function simulate() {
   const v0 = +document.getElementById('vel').value;
   const angle = +document.getElementById('ang').value;
   const mass = +document.getElementById('mass').value;
-  const body = document.getElementById('body').value;
-  const g = GRAVITY[body];
-  const useDrag = document.getElementById('useDrag').checked && body === 'Jorden';
+  const g = +document.getElementById('gravity').value;
+  const useDrag = document.getElementById('useDrag').checked;
   const cd = +document.getElementById('cd').value;
   const diam = +document.getElementById('diam').value;
   const press = +document.getElementById('press').value;
-  const useWind = document.getElementById('useWind').checked && body === 'Jorden';
+  const useWind = document.getElementById('useWind').checked;
   const windX = +document.getElementById('windX').value;
   const windY = +document.getElementById('windY').value;
   const dt = +document.getElementById('dt').value || 0.01;
   const targetAlt = +document.getElementById('targetAlt').value;
 
-  if (mass <= 0 || diam <= 0 || dt <= 0) {
-    alert('Kontrollera massa, diameter eller dt');
+  if (mass <= 0 || diam <= 0 || dt <= 0 || g <= 0) {
+    alert('Kontrollera massa, gravitation, diameter eller dt');
     return;
   }
 
@@ -141,7 +156,9 @@ function simulate() {
   let t = 0, maxH = 0, distPeak = 0, peak = false;
   const maxSim = 1200; // säkerhets­brytare
 
-  while ((pos[1] >= targetAlt || t < dt) && t < maxSim) {
+  let hasReachedTargetAltitude = 0 >= targetAlt; // startnivå kan redan vara över målet
+
+  while (t < maxSim) {
     // Krafter
     const Fg = [0, -mass * g];
     const vrel = [vel[0] - wind[0], vel[1] - wind[1]];
@@ -155,20 +172,32 @@ function simulate() {
     t += dt; points.push([pos[0], pos[1]]);
 
     if (!peak && vel[1] < 0) { peak = true; maxH = pos[1]; distPeak = pos[0]; }
-    if (pos[1] < targetAlt) break; // träff mark/mål
+
+    if (!hasReachedTargetAltitude && pos[1] >= targetAlt) {
+      hasReachedTargetAltitude = true;
+    }
+
+    const descending = vel[1] <= 0;
+    if (hasReachedTargetAltitude && descending && pos[1] < targetAlt) {
+      break; // passerade målplanet på väg ned
+    }
+
+    if (!hasReachedTargetAltitude && targetAlt > 0 && pos[1] < 0 && descending) {
+      break; // nådde marken utan att nå målhöjden
+    }
   }
 
   // Resultat
   const finalSpeed = Math.hypot(vel[0], vel[1]);
   const KE = 0.5 * mass * finalSpeed * finalSpeed;
   const range = pos[0];
-  const ideal = calcIdeal(v0, angle, g);
+  const ideal = calcIdeal(v0, angle, g, targetAlt);
 
   let res = `--- Parametrar ---\n`;
   res += `v0: ${v0.toFixed(2)} m/s\n`;
   res += `vinkel: ${angle.toFixed(2)}°\n`;
   res += `massa: ${mass} kg\n`;
-  res += `plats: ${body} (g=${g})\n`;
+  res += `gravitation: ${g} m/s²\n`;
   res += `drag: ${useDrag ? 'på' : 'av'}, vind: ${useWind ? 'på' : 'av'}\n`;
   res += `Cd: ${cd}, diam: ${diam} m, dt: ${dt}s\n`;
   res += `tryck: ${press} Pa, målhöjd: ${targetAlt} m\n\n`;
@@ -180,8 +209,10 @@ function simulate() {
   res += `Kinetisk energi: ${KE.toFixed(1)} J\n`;
   if (!Number.isNaN(ideal)) {
     const miss = range - ideal;
-    res += `Ideal räckvidd (plan mark): ${ideal.toFixed(3)} m\n`;
+    res += `Ideal räckvidd (vakuum): ${ideal.toFixed(3)} m\n`;
     res += `Δ räckvidd: ${(miss >= 0 ? '+' : '') + miss.toFixed(3)} m`;
+  } else {
+    res += `Ideal räckvidd (vakuum): Når aldrig målhöjden\n`;
   }
   document.getElementById('result').textContent = res;
 
@@ -195,7 +226,26 @@ function simulate() {
     borderColor: 'blue',
     pointRadius: 1
   }];
+  
   if (!Number.isNaN(ideal) && showIdeal) {
+    const idealPoints = [];
+    const vx = v0 * Math.cos(rad);
+    const vy = v0 * Math.sin(rad);
+    const tIdeal = ideal / vx;
+    for (let ti = 0; ti <= tIdeal; ti += dt * 5) { // Längre steg för idealbanan
+      idealPoints.push({ x: vx * ti, y: vy * ti - 0.5 * g * ti * ti });
+    }
+    idealPoints.push({ x: ideal, y: targetAlt });
+
+    datasets.push({
+      label: 'Ideal bana',
+      data: idealPoints,
+      showLine: true,
+      borderColor: 'rgba(0, 128, 0, 0.5)',
+      borderDash: [5, 5],
+      pointRadius: 0
+    });
+
     datasets.push({
       label: `Ideal nedslag (${ideal.toFixed(1)} m)`,
       data: [{ x: ideal, y: targetAlt }],
